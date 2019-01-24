@@ -7,9 +7,14 @@
 #     conf.check_nonfatal(header_name='stdint.h', define_name='HAVE_STDINT_H')
 
 def build(bld):
-    module = bld.create_ns3_module('bgp', ['core'])
+    module = bld.create_ns3_module('bgp', ['core', 'internet', 'network'])
     module.source = [
-        'model/bgp.cc',
+        'model/bgp-speaker.cc',
+        'model/bgp-peer.cc',
+        'model/nlri.cc',
+        'model/libbgp/src/libbgp.cc',
+        'model/libbgp/src/build.cc',
+        'model/libbgp/src/parse.cc',
         'helper/bgp-helper.cc',
         ]
 
@@ -21,7 +26,9 @@ def build(bld):
     headers = bld(features='ns3header')
     headers.module = 'bgp'
     headers.source = [
-        'model/bgp.h',
+        'model/bgp-speaker.h',
+        'model/bgp-peer.h',
+        'model/nlri.h',
         'helper/bgp-helper.h',
         ]
 
