@@ -24,5 +24,13 @@ BGPPeer::BGPPeer() {
     
 }
 
+Ipv4Address* BGPPeer::getAddress () {
+    return &m_peer_addr;
+}
+
+uint32_t BGPPeer::getAsn () {
+    return m_peer_as;
+}
+
 }
 

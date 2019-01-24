@@ -8,12 +8,15 @@
 #include "ns3/object-vector.h"
 #include "ns3/ptr.h"
 
+#include "libbgp/src/libbgp.h"
+
 namespace ns3 {
 
 class NLRI : public Object {
 
 	public:
 	static TypeId GetTypeId (void);
+	LibBGP::BGPRoute* toRoute();
 	NLRI();
 
 	private:

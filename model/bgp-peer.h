@@ -13,6 +13,8 @@ class BGPPeer : public Object {
 
 	public:
 	static TypeId GetTypeId (void);
+	Ipv4Address* getAddress();
+	uint32_t getAsn();
 	BGPPeer();
 
 	private:

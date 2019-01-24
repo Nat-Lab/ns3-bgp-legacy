@@ -24,5 +24,13 @@ NLRI::NLRI() {
 	
 }
 
+LibBGP::BGPRoute* NLRI::toRoute() {
+    auto route = new LibBGP::BGPRoute;
+    route->prefix = m_prefix.Get();
+    route->length = m_prefix_len;
+
+    return route; 
+}
+
 }
 
