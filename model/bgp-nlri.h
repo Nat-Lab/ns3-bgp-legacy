@@ -7,8 +7,7 @@
 #include "ns3/uinteger.h"
 #include "ns3/object-vector.h"
 #include "ns3/ptr.h"
-
-#include "libbgp/src/libbgp.h"
+#include "libbgp.h"
 
 namespace ns3 {
 

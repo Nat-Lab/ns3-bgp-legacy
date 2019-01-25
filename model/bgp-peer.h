@@ -2,7 +2,7 @@
 #ifndef BGP_P_H
 #define BGP_P_H
 
-#include "nlri.h"
+#include "bgp-nlri.h"
 #include "ns3/object.h"
 #include "ns3/ipv4-address.h"
 #include "ns3/uinteger.h"

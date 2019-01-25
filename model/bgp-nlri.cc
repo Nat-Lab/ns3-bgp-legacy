@@ -1,7 +1,7 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 
-#include "nlri.h"
-#include "libbgp/src/libbgp.h"
+#include "bgp-nlri.h"
+#include "libbgp.h"
 
 namespace ns3 {
 

@@ -11,10 +11,10 @@ def build(bld):
     module.source = [
         'model/bgp-speaker.cc',
         'model/bgp-peer.cc',
-        'model/nlri.cc',
-        'model/libbgp/src/libbgp.cc',
-        'model/libbgp/src/build.cc',
-        'model/libbgp/src/parse.cc',
+        'model/bgp-nlri.cc',
+        'model/libbgp.cc',
+        'model/build.cc',
+        'model/parse.cc',
         'helper/bgp-helper.cc',
         ]
 
@@ -28,7 +28,7 @@ def build(bld):
     headers.source = [
         'model/bgp-speaker.h',
         'model/bgp-peer.h',
-        'model/nlri.h',
+        'model/bgp-nlri.h',
         'helper/bgp-helper.h',
         ]
 

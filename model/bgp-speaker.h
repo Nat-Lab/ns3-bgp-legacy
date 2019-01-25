@@ -3,7 +3,7 @@
 #define BGP_S_H
 
 #include "bgp-peer.h"
-#include "nlri.h"
+#include "bgp-nlri.h"
 #include "ns3/application.h"
 #include "ns3/uinteger.h"
 #include "ns3/object-vector.h"
