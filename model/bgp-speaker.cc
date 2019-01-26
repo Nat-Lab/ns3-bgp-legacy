@@ -58,13 +58,12 @@ void BGPSpeaker::StartApplication () {
         );
 
     }
+
+    // TODO; conn to peer
 }
 
 void BGPSpeaker::StopApplication () {
-    if (m_sock != 0) {
-        m_sock->Close();
-        //m_sock->SetRecvCallback(MakeNullCallback<void, Ptr<Socket> > ());
-    }
+    // TODO
 }
 
 void BGPSpeaker::HandleAccept (Ptr<Socket> sock, const Address &src) {
@@ -129,9 +128,20 @@ void BGPSpeaker::HandleRead (Ptr<Socket> sock) {
                 ps->addr = src_addr;
                 ps->status = 1;
 
-                // TODO send KEEPALIVE
+                auto reply_msg = new LibBGP::BGPPacket;
+                reply_msg->type = 4;
+                uint8_t *buffer = (uint8_t *) malloc(4096);
+                int len = reply_msg->write(buffer);
+                sock->Send(buffer, len, 0);
 
                 NS_LOG_INFO("AS" << m_asn << ": session with AS" << asn << " entered OPEN_CONFIRM");
+
+                delete buffer;
+                delete reply_msg;
+                delete pkt;
+
+                return;
+                
             }
 
             if (ps->status == 1) { // race condition where both peer init conn?
@@ -274,11 +284,14 @@ void BGPSpeaker::HandleRead (Ptr<Socket> sock) {
 
         if (ps == m_peer_status.end()) { // wtf?
             NS_LOG_WARN("AS" << m_asn << ": got a KEEPALIVE out of nowhere");
+            delete pkt;
             return;
         }
 
         if (ps->status == 0) { // wtf?
-            NS_LOG_WARN("AS" << m_asn << ": session with AS" << ps->asn << " established");
+            NS_LOG_WARN("AS" << m_asn << ": got KEEPALIVE from AS" << ps->asn << " but no OPEN");
+            delete pkt;
+            return;
         }
 
         if (ps->status == 1) { // in OPEN_CONFIRM, go to ESTABLISHED
