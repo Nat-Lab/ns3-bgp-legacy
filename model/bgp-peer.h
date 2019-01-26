@@ -2,7 +2,7 @@
 #ifndef BGP_P_H
 #define BGP_P_H
 
-#include "bgp-nlri.h"
+#include "bgp-route.h"
 #include "ns3/object.h"
 #include "ns3/ipv4-address.h"
 #include "ns3/uinteger.h"
@@ -13,7 +13,7 @@ class BGPPeer : public Object {
 
 	public:
 	static TypeId GetTypeId (void);
-	Ipv4Address* getAddress();
+	Ipv4Address getAddress();
 	uint32_t getAsn();
 	BGPPeer();
 

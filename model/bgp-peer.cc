@@ -9,7 +9,7 @@ TypeId BGPPeer::GetTypeId (void) {
     return TypeId ("ns3::Peer")
         .SetParent<Object> ()
         .SetGroupName("Internet")
-        .AddConstructor<NLRI> ()
+        .AddConstructor<BGPPeer> ()
         .AddAttribute("Address", "Address of the peer",
                       Ipv4AddressValue(),
                       MakeIpv4AddressAccessor (&BGPPeer::m_peer_addr),
@@ -24,8 +24,8 @@ BGPPeer::BGPPeer() {
     
 }
 
-Ipv4Address* BGPPeer::getAddress () {
-    return &m_peer_addr;
+Ipv4Address BGPPeer::getAddress () {
+    return m_peer_addr;
 }
 
 uint32_t BGPPeer::getAsn () {

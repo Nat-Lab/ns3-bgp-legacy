@@ -2,21 +2,28 @@
 #ifndef BGP_N_H
 #define BGP_N_H
 
+#include <arpa/inet.h>
+
+#include "libbgp.h"
 #include "ns3/object.h"
 #include "ns3/ipv4-address.h"
 #include "ns3/uinteger.h"
 #include "ns3/object-vector.h"
 #include "ns3/ptr.h"
-#include "libbgp.h"
+#include "ns3/object-factory.h"
 
 namespace ns3 {
 
-class NLRI : public Object {
+class BGPRoute : public Object {
 
 	public:
 	static TypeId GetTypeId (void);
-	LibBGP::BGPRoute* toRoute();
-	NLRI();
+	LibBGP::BGPRoute* toLibBGP();
+	static Ptr<BGPRoute> fromLibBGP(LibBGP::BGPRoute *route);
+
+	Ipv4Address getPrefix();
+	uint8_t getLength();
+	BGPRoute();
 
 	private:
 	uint8_t m_prefix_len;

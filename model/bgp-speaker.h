@@ -2,8 +2,15 @@
 #ifndef BGP_S_H
 #define BGP_S_H
 
+#include <algorithm>
+#include <vector>
+#include <iterator>
+
+#include <arpa/inet.h>
+
 #include "bgp-peer.h"
-#include "bgp-nlri.h"
+#include "bgp-route.h"
+#include "bgp-peerstatus.h"
 #include "ns3/application.h"
 #include "ns3/uinteger.h"
 #include "ns3/object-vector.h"
@@ -12,6 +19,8 @@
 #include "ns3/inet-socket-address.h"
 #include "ns3/socket.h"
 #include "ns3/tcp-socket-factory.h"
+#include "ns3/ipv4.h"
+#include "ns3/log.h"
 
 namespace ns3 {
 
@@ -27,7 +36,8 @@ class BGPSpeaker : public Application {
 
 	private:
 	std::vector<Ptr<BGPPeer>> m_peers;
-	std::vector<Ptr<NLRI>> m_nlri;
+	std::vector<PeerStatus> m_peer_status;
+	std::vector<Ptr<BGPRoute>> m_nlri;
 	uint32_t m_asn;
 	Ptr<Socket> m_sock;
 
