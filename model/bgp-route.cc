@@ -66,5 +66,13 @@ bool BGPRoute::operator== (const BGPRoute& other) {
     return m_prefix == other.m_prefix && m_prefix_len == other.m_prefix_len;
 }
 
+std::vector<uint32_t>* BGPRoute::getAsPath() {
+    return &m_as_path;
+}
+
+void BGPRoute::setAsPath(std::vector<uint32_t> path) {
+    m_as_path = path;
+}
+
 }
 

@@ -25,6 +25,8 @@ class BGPRoute : public Object {
 	void setPrefix(Ipv4Address prefix);
 	uint8_t getLength();
 	void setLength(uint8_t length);
+	std::vector<uint32_t>* getAsPath();
+	void setAsPath(std::vector<uint32_t> path);
 	BGPRoute();
 
 	bool operator== (const BGPRoute& other);
@@ -32,6 +34,7 @@ class BGPRoute : public Object {
 	private:
 	uint8_t m_prefix_len;
 	Ipv4Address m_prefix;
+	std::vector<uint32_t> m_as_path; // only keep as_path attrib, make life easier.
 };
 
 }

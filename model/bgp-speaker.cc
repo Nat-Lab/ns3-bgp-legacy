@@ -285,6 +285,8 @@ void BGPSpeaker::HandleRead (Ptr<Socket> sock) {
             std::copy(as_path->begin(), as_path->end(), std::ostream_iterator<uint32_t>(as_path_str, " "));
         }
 
+        if (as_path) as_path->insert(as_path->begin(), m_asn);
+
         std::for_each(routes_drop->begin(), routes_drop->end(), [this](LibBGP::BGPRoute *r) {
             std::ostringstream prefix;
             auto route = BGPRoute::fromLibBGP(r);
@@ -302,14 +304,17 @@ void BGPSpeaker::HandleRead (Ptr<Socket> sock) {
             NS_LOG_INFO("AS" << m_asn << ": withdraw: " << (prefix.str()).c_str() << "/" << len);
         });
         
-        std::for_each(routes_add->begin(), routes_add->end(), [this, &as_path_str, &next_hop](LibBGP::BGPRoute *r) {
+        std::for_each(routes_add->begin(), routes_add->end(), [this, &as_path_str, &next_hop, &as_path](LibBGP::BGPRoute *r) {
             std::ostringstream prefix, nxthop;
             auto route = BGPRoute::fromLibBGP(r);
             auto pfx = route->getPrefix();
             auto len = route->getLength();
             // TODO: route: add to kernel table.
 
-            m_nlri.push_back(BGPRoute::fromLibBGP(r));
+            auto br = BGPRoute::fromLibBGP(r);
+            br->setAsPath(*as_path);
+
+            m_nlri.push_back(br);
             pfx.Print(prefix);
             next_hop.Print(nxthop);
             NS_LOG_INFO("AS" << m_asn << ": add: " << (prefix.str()).c_str() << "/" << (int) len << 
@@ -318,8 +323,6 @@ void BGPSpeaker::HandleRead (Ptr<Socket> sock) {
         });
 
         // Update forward
-
-        if (as_path) as_path->push_back(m_asn);
         
         auto pkt_send = new LibBGP::BGPPacket;
         auto update_send = new LibBGP::BGPUpdateMessage;
@@ -373,30 +376,35 @@ void BGPSpeaker::HandleRead (Ptr<Socket> sock) {
 
             if (m_nlri.size() == 0) return;
 
-            NS_LOG_INFO("AS" << m_asn << ": NLRI non empty, sending update to " << ps->asn);
+            NS_LOG_INFO("AS" << m_asn << ": NLRI non empty, sending update to AS" << ps->asn);
 
-            auto pkt_send = new LibBGP::BGPPacket;
-            auto update_send = new LibBGP::BGPUpdateMessage;
-            auto me = (((GetNode())->GetObject<Ipv4>())->GetAddress(1, 0)).GetLocal(); 
+            auto me = (((GetNode())->GetObject<Ipv4>())->GetAddress(1, 0)).GetLocal();
+            std::for_each(m_nlri.begin(), m_nlri.end(), [this, &ps, &me, &sock](Ptr<BGPRoute> route) {
+                auto pkt_send = new LibBGP::BGPPacket;
+                auto update_send = new LibBGP::BGPUpdateMessage;
 
-            update_send->setAsPath(new std::vector<uint32_t> {m_asn}, true);
-            update_send->setOrigin(0);
-            update_send->setNexthop(htonl(me.Get()));
+                auto asp = route->getAsPath();
+                if (asp->size() == 0) asp->push_back(m_asn);
 
-            std::for_each(m_nlri.begin(), m_nlri.end(), [&update_send](Ptr<BGPRoute> route) {
+                update_send->setAsPath(asp, true);
+                update_send->setOrigin(0);
+                update_send->setNexthop(htonl(me.Get()));
                 update_send->addPrefix(htonl((route->getPrefix().Get())), route->getLength(), false);
+
+                pkt_send->type = 2;
+                pkt_send->update = update_send;
+
+                uint8_t *buffer = (uint8_t *) malloc(4096);
+                int len = pkt_send->write(buffer);
+                sock->Send(buffer, len, 0);
+
+                delete update_send;
+                delete pkt_send;
+                delete buffer;
             });
-
-            pkt_send->type = 2;
-            pkt_send->update = update_send;
-
-            uint8_t *buffer = (uint8_t *) malloc(4096);
-            int len = pkt_send->write(buffer);
-            sock->Send(buffer, len, 0);
 
             KeepaliveSenderStart(sock, Seconds(5.0));
 
-            delete pkt_send;
             delete pkt;
             return;
         }
