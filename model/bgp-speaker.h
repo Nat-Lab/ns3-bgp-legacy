@@ -30,6 +30,8 @@ class BGPSpeaker : public Application {
 	static TypeId GetTypeId (void);	
 	BGPSpeaker();
 	virtual ~BGPSpeaker();
+	void setPeers (std::vector<Ptr<BGPPeer>> peers);
+	void setRoutes (std::vector<Ptr<BGPRoute>> routes);
 
 	protected:
 	virtual void DoDispose (void);
@@ -46,6 +48,8 @@ class BGPSpeaker : public Application {
 	void HandleAccept (Ptr<Socket> socket, const Address &src);
 	bool HandleRequest (Ptr<Socket> socket, const Address &src);
 	void HandleRead (Ptr<Socket> sock);
+	void HandleConnect (Ptr<Socket> sock);
+	void HandleConnectFailed (Ptr<Socket> sock);
 
 };
 

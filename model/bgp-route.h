@@ -22,7 +22,9 @@ class BGPRoute : public Object {
 	static Ptr<BGPRoute> fromLibBGP(LibBGP::BGPRoute *route);
 
 	Ipv4Address getPrefix();
+	void setPrefix(Ipv4Address prefix);
 	uint8_t getLength();
+	void setLength(uint8_t length);
 	BGPRoute();
 
 	private:

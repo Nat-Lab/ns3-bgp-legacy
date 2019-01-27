@@ -29,6 +29,7 @@ def build(bld):
         'model/bgp-speaker.h',
         'model/bgp-peer.h',
         'model/bgp-route.h',
+        'model/bgp-peerstatus.h',
         'helper/bgp-helper.h',
         ]
 

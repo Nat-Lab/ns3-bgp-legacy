@@ -14,7 +14,9 @@ class BGPPeer : public Object {
 	public:
 	static TypeId GetTypeId (void);
 	Ipv4Address getAddress();
+	void setAddress(Ipv4Address addr);
 	uint32_t getAsn();
+	void setAsn(uint32_t asn);
 	BGPPeer();
 
 	private:

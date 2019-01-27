@@ -6,7 +6,7 @@
 namespace ns3 {
 
 TypeId BGPPeer::GetTypeId (void) {
-    return TypeId ("ns3::Peer")
+    static TypeId tid = TypeId ("ns3::BGPPeer")
         .SetParent<Object> ()
         .SetGroupName("Internet")
         .AddConstructor<BGPPeer> ()
@@ -18,6 +18,8 @@ TypeId BGPPeer::GetTypeId (void) {
                       UintegerValue(),
                       MakeUintegerAccessor (&BGPPeer::m_peer_as),
                       MakeUintegerChecker<uint32_t> ());
+
+    return tid;
 } 
 
 BGPPeer::BGPPeer() {
@@ -28,8 +30,16 @@ Ipv4Address BGPPeer::getAddress () {
     return m_peer_addr;
 }
 
+void BGPPeer::setAddress (Ipv4Address addr) {
+    m_peer_addr = addr;
+}
+
 uint32_t BGPPeer::getAsn () {
     return m_peer_as;
+}
+
+void BGPPeer::setAsn (uint32_t asn) {
+    m_peer_as = asn;
 }
 
 }

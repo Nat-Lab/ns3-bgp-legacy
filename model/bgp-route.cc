@@ -6,7 +6,7 @@
 namespace ns3 {
 
 TypeId BGPRoute::GetTypeId (void) {
-    return TypeId ("ns3::BGPRoute")
+    static TypeId tid = TypeId ("ns3::BGPRoute")
         .SetParent<Object> ()
         .SetGroupName("Internet")
         .AddConstructor<BGPRoute> ()
@@ -18,6 +18,8 @@ TypeId BGPRoute::GetTypeId (void) {
                       UintegerValue(),
                       MakeUintegerAccessor (&BGPRoute::m_prefix_len),
                       MakeUintegerChecker<uint8_t> (0, 24));
+
+    return tid;
 } 
 
 BGPRoute::BGPRoute() {
@@ -28,8 +30,16 @@ Ipv4Address BGPRoute::getPrefix() {
     return m_prefix;
 }
 
+void BGPRoute::setPrefix(Ipv4Address prefix) {
+    m_prefix = prefix;
+}
+
 uint8_t BGPRoute::getLength() {
     return m_prefix_len;
+}
+
+void BGPRoute::setLength(uint8_t len) {
+    m_prefix_len = len;
 }
 
 LibBGP::BGPRoute* BGPRoute::toLibBGP() {

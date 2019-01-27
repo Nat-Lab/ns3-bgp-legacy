@@ -9,7 +9,7 @@ NS_LOG_COMPONENT_DEFINE("BGPSpeaker");
 NS_OBJECT_ENSURE_REGISTERED(BGPSpeaker);
 
 TypeId BGPSpeaker::GetTypeId (void) {
-    return TypeId ("ns3::BGPSpeaker")
+    static TypeId tid = TypeId ("ns3::BGPSpeaker")
         .SetParent<Application> ()
         .SetGroupName("Internet")
         .AddConstructor<BGPSpeaker> ()
@@ -25,10 +25,20 @@ TypeId BGPSpeaker::GetTypeId (void) {
                       ObjectVectorValue(),
                       MakeObjectVectorAccessor(&BGPSpeaker::m_nlri),
                       MakeObjectVectorChecker<BGPRoute> ());
+    
+    return tid;
 } 
 
 BGPSpeaker::BGPSpeaker() {
     
+}
+
+void BGPSpeaker::setPeers (std::vector<Ptr<BGPPeer>> peers) {
+    m_peers = peers;
+}
+
+void BGPSpeaker::setRoutes (std::vector<Ptr<BGPRoute>> routes) {
+    m_nlri = routes;
 }
 
 BGPSpeaker::~BGPSpeaker() {
@@ -57,12 +67,67 @@ void BGPSpeaker::StartApplication () {
             MakeCallback(&BGPSpeaker::HandleAccept, this)
         );
 
-    }
+        std::for_each(m_peers.begin(), m_peers.end(), [this](Ptr<BGPPeer> peer) {
+            auto e_peer = std::find_if(m_peer_status.begin(), m_peer_status.end(), [&peer](PeerStatus ps) {
+                return (peer->getAddress()).IsEqual(ps.addr);
+            });
 
-    // TODO; conn to peer
+            if (e_peer != m_peer_status.end()) return;
+
+            Ptr<Socket> s = Socket::CreateSocket(GetNode(), TcpSocketFactory::GetTypeId());
+            auto peer_addr = peer->getAddress();
+            auto peer_asn = peer->getAsn();
+            std::ostringstream peer_addr_stream;
+            peer_addr.Print(peer_addr_stream);
+
+            if(s->Connect(InetSocketAddress(peer->getAddress(), 179)) == -1) {
+                
+                NS_LOG_WARN("AS" << m_asn << ": failed to Connect() to peer " << (peer_addr_stream.str().c_str()) <<
+                            " (AS" << peer_asn << ")");
+                return;
+            }
+
+            NS_LOG_INFO("AS" << m_asn << ": send OPEN to " << (peer_addr_stream.str().c_str()) << 
+                        " (AS" << peer_asn << ")");
+
+            s->SetConnectCallback(
+                MakeCallback(&BGPSpeaker::HandleConnect, this),
+                MakeCallback(&BGPSpeaker::HandleConnectFailed, this)
+            );
+
+            s->SetRecvCallback(MakeCallback(&BGPSpeaker::HandleRead, this));
+
+            PeerStatus ps;
+            ps.socket = s;
+            ps.asn = peer_asn;
+            ps.addr = peer_addr;
+            ps.status = 0;
+
+            m_peer_status.push_back(ps);
+        });
+    }
 }
 
 void BGPSpeaker::StopApplication () {
+    // TODO
+}
+
+void BGPSpeaker::HandleConnect (Ptr<Socket> socket) {
+    Ipv4Address me = (((GetNode())->GetObject<Ipv4>())->GetAddress(1, 0)).GetLocal(); 
+
+    auto send_msg = new LibBGP::BGPPacket;
+    send_msg->type = 1;
+    send_msg->open = new LibBGP::BGPOpenMessage(m_asn, 15, htonl(me.Get()));
+
+    uint8_t *buffer = (uint8_t *) malloc(4096);
+    int len = send_msg->write(buffer);
+    socket->Send(buffer, len, 0);
+
+    delete buffer;
+    delete send_msg;
+}
+
+void BGPSpeaker::HandleConnectFailed (Ptr<Socket> socket) {
     // TODO
 }
 
@@ -71,7 +136,7 @@ void BGPSpeaker::HandleAccept (Ptr<Socket> sock, const Address &src) {
 }
 
 bool BGPSpeaker::HandleRequest (Ptr<Socket> socket, const Address &src) {
-    auto src_addr = Ipv4Address::ConvertFrom(src);
+    auto src_addr = (InetSocketAddress::ConvertFrom(src)).GetIpv4();
     auto peer = std::find_if(m_peers.begin(), m_peers.end(), [&src_addr](Ptr<BGPPeer> peer) {
         return src_addr.IsEqual(peer->getAddress()); 
     });
@@ -89,7 +154,7 @@ void BGPSpeaker::HandleRead (Ptr<Socket> sock) {
     Address from;
     uint8_t *buffer = (uint8_t *) malloc(4096);
     int sz = sock->RecvFrom(buffer, 4096, 0, from);
-    auto src_addr = Ipv4Address::ConvertFrom(from);
+    auto src_addr = (InetSocketAddress::ConvertFrom(from)).GetIpv4();
 
     if (sz < 19) return;
 
