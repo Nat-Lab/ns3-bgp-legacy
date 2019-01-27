@@ -252,7 +252,7 @@ void BGPSpeaker::HandleRead (Ptr<Socket> sock) {
         auto as_path = update->getAsPath();
         auto routes_drop = update->withdrawn_routes;
         auto routes_add = update->nlri;
-        auto next_hop = Ipv4Address(update->getNexthop());
+        auto next_hop = Ipv4Address(ntohl(update->getNexthop()));
 
         auto ps = std::find_if(m_peer_status.begin(), m_peer_status.end(), [&src_addr](PeerStatus ps) {
             return src_addr.IsEqual(ps.addr);
@@ -290,7 +290,13 @@ void BGPSpeaker::HandleRead (Ptr<Socket> sock) {
             auto route = BGPRoute::fromLibBGP(r);
             auto pfx = route->getPrefix();
             auto len = route->getLength();
-            // TODO: route: remove from kernel table.
+            // TODO: route: remove from kernel table
+
+            auto to_erase = std::find_if(m_nlri.begin(), m_nlri.end(), [&route](Ptr<BGPRoute> r) {
+                return *route == *r;
+            });
+
+            if(to_erase != m_nlri.end()) m_nlri.erase(to_erase);
 
             pfx.Print(prefix);
             NS_LOG_INFO("AS" << m_asn << ": withdraw: " << (prefix.str()).c_str() << "/" << len);
@@ -303,9 +309,10 @@ void BGPSpeaker::HandleRead (Ptr<Socket> sock) {
             auto len = route->getLength();
             // TODO: route: add to kernel table.
 
+            m_nlri.push_back(BGPRoute::fromLibBGP(r));
             pfx.Print(prefix);
             next_hop.Print(nxthop);
-            NS_LOG_INFO("AS" << m_asn << ": add: " << (prefix.str()).c_str() << "/" << len << 
+            NS_LOG_INFO("AS" << m_asn << ": add: " << (prefix.str()).c_str() << "/" << (int) len << 
                         ", path: " << (as_path_str.str()).c_str() << ", nexthtop: " <<
                         (nxthop.str()).c_str());
         });
@@ -316,7 +323,7 @@ void BGPSpeaker::HandleRead (Ptr<Socket> sock) {
         
         auto pkt_send = new LibBGP::BGPPacket;
         auto update_send = new LibBGP::BGPUpdateMessage;
-            
+        
         update_send->setNexthop(htonl(me.Get())); // in real world we don't always nexthop=self, but whatever.
         update_send->withdrawn_routes = update->withdrawn_routes;
         update_send->nlri = update->nlri;
@@ -363,6 +370,35 @@ void BGPSpeaker::HandleRead (Ptr<Socket> sock) {
             ps->status = 2;
             NS_LOG_INFO("AS" << m_asn << ": session with AS" << ps->asn << " established");
             // TODO: schedule regular keepalive
+
+            if (m_nlri.size() == 0) return;
+
+            NS_LOG_INFO("AS" << m_asn << ": NLRI non empty, sending update to " << ps->asn);
+
+            auto pkt_send = new LibBGP::BGPPacket;
+            auto update_send = new LibBGP::BGPUpdateMessage;
+            auto me = (((GetNode())->GetObject<Ipv4>())->GetAddress(1, 0)).GetLocal(); 
+
+            update_send->setAsPath(new std::vector<uint32_t> {m_asn}, true);
+            update_send->setOrigin(0);
+            update_send->setNexthop(htonl(me.Get()));
+
+            std::for_each(m_nlri.begin(), m_nlri.end(), [&update_send](Ptr<BGPRoute> route) {
+                update_send->addPrefix(htonl((route->getPrefix().Get())), route->getLength(), false);
+            });
+
+            pkt_send->type = 2;
+            pkt_send->update = update_send;
+
+            uint8_t *buffer = (uint8_t *) malloc(4096);
+            int len = pkt_send->write(buffer);
+            sock->Send(buffer, len, 0);
+
+            KeepaliveSenderStart(sock, Seconds(5.0));
+
+            delete pkt_send;
+            delete pkt;
+            return;
         }
 
         if (ps->status == 2) { // in ESTABLISHED
@@ -370,6 +406,16 @@ void BGPSpeaker::HandleRead (Ptr<Socket> sock) {
         }
         
     }
+}
+
+void BGPSpeaker::KeepaliveSenderStart(Ptr<Socket> sock, Time dt) {
+    auto keepalive = new LibBGP::BGPPacket;
+    keepalive->type = 4;
+    uint8_t *buffer = (uint8_t *) malloc(4096);
+    int len = keepalive->write(buffer);
+    sock->Send(buffer, len, 0);
+    delete keepalive;
+    Simulator::Schedule(dt, &BGPSpeaker::KeepaliveSenderStart, this, sock, dt);
 }
 
 }

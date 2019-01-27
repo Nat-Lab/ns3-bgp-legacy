@@ -27,6 +27,8 @@ class BGPRoute : public Object {
 	void setLength(uint8_t length);
 	BGPRoute();
 
+	bool operator== (const BGPRoute& other);
+
 	private:
 	uint8_t m_prefix_len;
 	Ipv4Address m_prefix;

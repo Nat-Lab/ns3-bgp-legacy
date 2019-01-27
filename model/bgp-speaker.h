@@ -21,6 +21,7 @@
 #include "ns3/tcp-socket-factory.h"
 #include "ns3/ipv4.h"
 #include "ns3/log.h"
+#include "ns3/simulator.h"
 
 namespace ns3 {
 
@@ -50,6 +51,7 @@ class BGPSpeaker : public Application {
 	void HandleRead (Ptr<Socket> sock);
 	void HandleConnect (Ptr<Socket> sock);
 	void HandleConnectFailed (Ptr<Socket> sock);
+	void KeepaliveSenderStart(Ptr<Socket> socket, Time dt);
 
 };
 

@@ -62,5 +62,9 @@ Ptr<BGPRoute> BGPRoute::fromLibBGP(LibBGP::BGPRoute* route) {
     return m_factory.Create<BGPRoute>();
 }
 
+bool BGPRoute::operator== (const BGPRoute& other) {
+    return m_prefix == other.m_prefix && m_prefix_len == other.m_prefix_len;
+}
+
 }
 
