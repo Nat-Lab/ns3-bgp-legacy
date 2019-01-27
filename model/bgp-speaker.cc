@@ -77,18 +77,14 @@ void BGPSpeaker::StartApplication () {
             Ptr<Socket> s = Socket::CreateSocket(GetNode(), TcpSocketFactory::GetTypeId());
             auto peer_addr = peer->getAddress();
             auto peer_asn = peer->getAsn();
-            std::ostringstream peer_addr_stream;
-            peer_addr.Print(peer_addr_stream);
 
             if(s->Connect(InetSocketAddress(peer->getAddress(), 179)) == -1) {
                 
-                NS_LOG_WARN("AS" << m_asn << ": failed to Connect() to peer " << (peer_addr_stream.str().c_str()) <<
-                            " (AS" << peer_asn << ")");
+                NS_LOG_WARN("AS" << m_asn << ": failed to Connect() to peer " << peer_addr << " (AS" << peer_asn << ")");
                 return;
             }
 
-            NS_LOG_INFO("AS" << m_asn << ": send OPEN to " << (peer_addr_stream.str().c_str()) << 
-                        " (AS" << peer_asn << ")");
+            NS_LOG_INFO("AS" << m_asn << ": send OPEN to " << peer_addr << " (AS" << peer_asn << ")");
 
             s->SetConnectCallback(
                 MakeCallback(&BGPSpeaker::HandleConnect, this),
@@ -174,11 +170,8 @@ void BGPSpeaker::HandleRead (Ptr<Socket> sock) {
         }
 
         if (!src_addr.IsEqual((*peer)->getAddress())) {
-            std::ostringstream want, saw;
-            ((**peer).getAddress()).Print(want);
-            src_addr.Print(saw);
             NS_LOG_WARN("AS" << m_asn << ": Rejecting invlaid source address from AS" << asn <<
-                        ". Want " << (want.str()).c_str() << ", but saw " << (saw.str()).c_str());
+                        ". Want " << (**peer).getAddress() << ", but saw " << src_addr);
             return;
         }
 
@@ -288,7 +281,6 @@ void BGPSpeaker::HandleRead (Ptr<Socket> sock) {
         if (as_path) as_path->insert(as_path->begin(), m_asn);
 
         std::for_each(routes_drop->begin(), routes_drop->end(), [this](LibBGP::BGPRoute *r) {
-            std::ostringstream prefix;
             auto route = BGPRoute::fromLibBGP(r);
             auto pfx = route->getPrefix();
             auto len = route->getLength();
@@ -300,26 +292,21 @@ void BGPSpeaker::HandleRead (Ptr<Socket> sock) {
 
             if(to_erase != m_nlri.end()) m_nlri.erase(to_erase);
 
-            pfx.Print(prefix);
-            NS_LOG_INFO("AS" << m_asn << ": withdraw: " << (prefix.str()).c_str() << "/" << len);
+            NS_LOG_INFO("AS" << m_asn << ": withdraw: " << pfx << "/" << len);
         });
         
         std::for_each(routes_add->begin(), routes_add->end(), [this, &as_path_str, &next_hop, &as_path](LibBGP::BGPRoute *r) {
-            std::ostringstream prefix, nxthop;
             auto route = BGPRoute::fromLibBGP(r);
             auto pfx = route->getPrefix();
             auto len = route->getLength();
             // TODO: route: add to kernel table.
 
+            NS_LOG_INFO("AS" << m_asn << ": add: " << pfx << "/" << (int) len << 
+                        ", path: " << (as_path_str.str()).c_str() << ", nexthop: " << next_hop);
+
             auto br = BGPRoute::fromLibBGP(r);
             br->setAsPath(*as_path);
-
             m_nlri.push_back(br);
-            pfx.Print(prefix);
-            next_hop.Print(nxthop);
-            NS_LOG_INFO("AS" << m_asn << ": add: " << (prefix.str()).c_str() << "/" << (int) len << 
-                        ", path: " << (as_path_str.str()).c_str() << ", nexthtop: " <<
-                        (nxthop.str()).c_str());
         });
 
         // Update forward
@@ -333,7 +320,7 @@ void BGPSpeaker::HandleRead (Ptr<Socket> sock) {
         update_send->setAsPath(as_path, true);
         update_send->setOrigin(0);
             
-        pkt_send->update = update;
+        pkt_send->update = update_send;
         pkt_send->type = 2;
 
         uint8_t *buffer = (uint8_t *) malloc(4096);
