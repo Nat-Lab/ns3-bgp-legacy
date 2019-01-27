@@ -146,15 +146,9 @@ bool BGPSpeaker::HandleRequest (Ptr<Socket> socket, const Address &src) {
     return true;
 }
 
-void BGPSpeaker::HandleRead (Ptr<Socket> sock) {
-    Address from;
-    uint8_t *buffer = (uint8_t *) malloc(4096);
-    int sz = sock->RecvFrom(buffer, 4096, 0, from);
-    auto src_addr = (InetSocketAddress::ConvertFrom(from)).GetIpv4();
-
-    if (sz < 19) return;
-
-    auto pkt = new LibBGP::BGPPacket(buffer);
+bool BGPSpeaker::SpeakerLogic (Ptr<Socket> sock, uint8_t **buffer, Ipv4Address src_addr) {
+    auto pkt = new LibBGP::BGPPacket();
+    *buffer = pkt->read(*buffer);
 
     if (pkt->type == 1 && pkt->open) {
         auto open_msg = pkt->open;
@@ -166,13 +160,13 @@ void BGPSpeaker::HandleRead (Ptr<Socket> sock) {
 
         if (peer == m_peers.end()) {
             NS_LOG_WARN("AS" << m_asn << ": Rejecting unknow Peer AS" << asn);
-            return;
+            return true;
         }
 
         if (!src_addr.IsEqual((*peer)->getAddress())) {
             NS_LOG_WARN("AS" << m_asn << ": Rejecting invlaid source address from AS" << asn <<
                         ". Want " << (**peer).getAddress() << ", but saw " << src_addr);
-            return;
+            return true;
         }
 
         auto ps = std::find_if(m_peer_status.begin(), m_peer_status.end(), [&src_addr](PeerStatus ps) {
@@ -198,7 +192,7 @@ void BGPSpeaker::HandleRead (Ptr<Socket> sock) {
                 delete reply_msg;
                 delete pkt;
 
-                return;
+                return true;
                 
             }
 
@@ -209,7 +203,7 @@ void BGPSpeaker::HandleRead (Ptr<Socket> sock) {
             if (ps->status == 2) { // wtf?
                 NS_LOG_WARN("AS" << m_asn << ": session with AS" << asn << " already established but got another open");
                 delete pkt;
-                return;
+                return true;
             }
 
         } else { // peer init the conn, reply open, go to OPEN_CONFIRM
@@ -235,7 +229,7 @@ void BGPSpeaker::HandleRead (Ptr<Socket> sock) {
             delete reply_msg;
             delete pkt;
 
-            return;
+            return true;
         }
     }
 
@@ -254,13 +248,13 @@ void BGPSpeaker::HandleRead (Ptr<Socket> sock) {
         if (ps == m_peer_status.end()) { // ???
             NS_LOG_WARN("AS" << m_asn << ": got a UPDATE out of nowhere");
             delete pkt;
-            return;
+            return true;
         }
 
         if (ps->status == 0 || ps->status == 1) { // ???
             NS_LOG_WARN("AS" << m_asn << ": got UPDATE from AS" << ps->asn << " but session is not yet established");
             delete pkt;
-            return;
+            return true;
         }
 
         // Update processing
@@ -273,7 +267,7 @@ void BGPSpeaker::HandleRead (Ptr<Socket> sock) {
             if (self != as_path->end()) {
                 // m_asn in as_path, ignore.
                 delete pkt;
-                return;
+                return true;
             }
             std::copy(as_path->begin(), as_path->end(), std::ostream_iterator<uint32_t>(as_path_str, " "));
         }
@@ -336,7 +330,7 @@ void BGPSpeaker::HandleRead (Ptr<Socket> sock) {
         delete pkt_send;
         delete pkt;
 
-        return;
+        return true;
     }
 
     if (pkt->type == 4) {
@@ -347,13 +341,13 @@ void BGPSpeaker::HandleRead (Ptr<Socket> sock) {
         if (ps == m_peer_status.end()) { // wtf?
             NS_LOG_WARN("AS" << m_asn << ": got a KEEPALIVE out of nowhere");
             delete pkt;
-            return;
+            return true;
         }
 
         if (ps->status == 0) { // wtf?
             NS_LOG_WARN("AS" << m_asn << ": got KEEPALIVE from AS" << ps->asn << " but no OPEN");
             delete pkt;
-            return;
+            return true;
         }
 
         if (ps->status == 1) { // in OPEN_CONFIRM, go to ESTABLISHED
@@ -361,7 +355,7 @@ void BGPSpeaker::HandleRead (Ptr<Socket> sock) {
             NS_LOG_INFO("AS" << m_asn << ": session with AS" << ps->asn << " established");
             // TODO: schedule regular keepalive
 
-            if (m_nlri.size() == 0) return;
+            if (m_nlri.size() == 0) return true;
 
             NS_LOG_INFO("AS" << m_asn << ": NLRI non empty, sending update to AS" << ps->asn);
 
@@ -378,6 +372,8 @@ void BGPSpeaker::HandleRead (Ptr<Socket> sock) {
                 update_send->setNexthop(htonl(me.Get()));
                 update_send->addPrefix(htonl((route->getPrefix().Get())), route->getLength(), false);
 
+                NS_LOG_INFO("AS" << m_asn << ": send " << route->getPrefix() << " to AS" << ps->asn);
+
                 pkt_send->type = 2;
                 pkt_send->update = update_send;
 
@@ -393,14 +389,35 @@ void BGPSpeaker::HandleRead (Ptr<Socket> sock) {
             KeepaliveSenderStart(sock, Seconds(5.0));
 
             delete pkt;
-            return;
+            return true;
         }
 
         if (ps->status == 2) { // in ESTABLISHED
             // TODO: hold timer related stuff.
+            return true;
         }
         
     }
+
+    return false;
+
+}
+
+void BGPSpeaker::HandleRead (Ptr<Socket> sock) {
+    Address from;
+    uint8_t *buffer = (uint8_t *) malloc(65536);
+    int sz = sock->RecvFrom(buffer, 65536, 0, from);
+    auto src_addr = (InetSocketAddress::ConvertFrom(from)).GetIpv4();
+    if (sz < 19) return;
+
+    uint8_t *buffer_ptr = buffer;
+    bool has_valid = true;
+
+    while (buffer_ptr - buffer < sz && has_valid) {
+        has_valid = SpeakerLogic(sock, &buffer_ptr, src_addr);
+    }
+   
+   delete buffer;
 }
 
 void BGPSpeaker::KeepaliveSenderStart(Ptr<Socket> sock, Time dt) {
