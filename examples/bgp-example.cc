@@ -20,7 +20,10 @@ using namespace ns3;
  */
 
 int main () {
-    LogComponentEnable ("BGPSpeaker", LOG_LEVEL_ALL);
+    LogComponentEnable("BGPSpeaker", LOG_LEVEL_ALL);
+
+    GlobalValue::Bind("SimulatorImplementationType", 
+        StringValue("ns3::RealtimeSimulatorImpl"));
 
     NodeContainer n;
     n.Create(5);
