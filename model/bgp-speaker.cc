@@ -423,6 +423,7 @@ void BGPSpeaker::KeepaliveSenderStart(Ptr<Socket> sock, Time dt) {
     int len = keepalive->write(buffer);
     sock->Send(buffer, len, 0);
     delete keepalive;
+    delete buffer;
     Simulator::Schedule(dt, &BGPSpeaker::KeepaliveSenderStart, this, sock, dt);
 }
 
