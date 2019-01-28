@@ -35,7 +35,7 @@ int main () {
     NetDeviceContainer d = csma.Install(n);
 
     Ipv4AddressHelper ipv4;
-    ipv4.SetBase ("10.1.1.0", "255.255.255.0");
+    ipv4.SetBase("10.1.1.0", "255.255.255.0");
     Ipv4InterfaceContainer i = ipv4.Assign(d);
 
     BGPHelper bgp0 (65000);
@@ -71,8 +71,10 @@ int main () {
     a3.Start(Seconds(0.0));
     a4.Start(Seconds(0.0));
 
+    a4.Stop(Seconds(10.0));
+
+    csma.EnablePcapAll("BGPSpeaker");
     Simulator::Run();
 
     return 0;
-
 }
