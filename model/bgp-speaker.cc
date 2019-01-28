@@ -116,6 +116,7 @@ void BGPSpeaker::StopApplication () {
         std::for_each(m_peer_status.begin(), m_peer_status.end(), [](PeerStatus *ps) {
             ps->socket->Close();
             ps->socket->SetRecvCallback(MakeNullCallback<void, Ptr<Socket>>());
+            ps->KeepaliveSenderStop();
         });
         m_peer_status.erase(m_peer_status.begin(), m_peer_status.end());
         m_sock->Close();
@@ -163,6 +164,13 @@ void BGPSpeaker::DoClose (PeerStatus *ps) {
         delete buffer;
     }
 
+    auto to_remove = std::find_if(m_peer_status.begin(), m_peer_status.end(), [&ps](PeerStatus *ps_) {
+        return ps->addr.IsEqual(ps_->addr);
+    });
+
+    if (to_remove != m_peer_status.end()) m_peer_status.erase(to_remove);
+
+    delete ps;
 }
 
 void BGPSpeaker::DoConnect (PeerStatus *ps) {
@@ -428,7 +436,7 @@ bool BGPSpeaker::SpeakerLogic (Ptr<Socket> sock, uint8_t **buffer, Ipv4Address s
         if ((*ps)->status == 1) { // in OPEN_CONFIRM, go to ESTABLISHED
             (*ps)->status = 2;
             LOG_INFO("session with AS" << (*ps)->asn << " established");
-            KeepaliveSenderStart(sock, Seconds(5.0));
+            (*ps)->KeepaliveSenderStart(Seconds(5.0));
 
             if (m_nlri.size() == 0) return true;
 
@@ -491,17 +499,6 @@ void BGPSpeaker::HandleRead (Ptr<Socket> sock) {
     }
    
    delete buffer;
-}
-
-void BGPSpeaker::KeepaliveSenderStart(Ptr<Socket> sock, Time dt) {
-    auto keepalive = new LibBGP::BGPPacket;
-    keepalive->type = 4;
-    uint8_t *buffer = (uint8_t *) malloc(4096);
-    int len = keepalive->write(buffer);
-    sock->Send(buffer, len, 0);
-    delete keepalive;
-    delete buffer;
-    Simulator::Schedule(dt, &BGPSpeaker::KeepaliveSenderStart, this, sock, dt);
 }
 
 }

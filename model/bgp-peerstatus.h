@@ -4,6 +4,7 @@
 #include "ns3/ptr.h"
 #include "ns3/socket.h"
 #include "ns3/inet-socket-address.h"
+#include "ns3/simulator.h"
 
 namespace ns3 {
 
@@ -15,9 +16,13 @@ typedef struct PeerStatus {
 	Ipv4Address addr;
 	uint32_t asn;
 	BGPSpeaker *speaker;
+	EventId e_keepalive_sender;
 
 	void HandleClose(Ptr<Socket> socket);
 	void HandleConnect(Ptr<Socket> socket);
+	void KeepaliveSenderStart(Time dt);
+	void KeepaliveSenderStop();
+	void KeepaliveSender(Time dt);
 } PeerStatus;
 
 }
