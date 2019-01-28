@@ -87,13 +87,6 @@ void BGPSpeaker::StartApplication () {
 
             LOG_INFO("send OPEN to " << peer_addr << " (AS" << peer_asn << ")");
 
-            s->SetConnectCallback(
-                MakeCallback(&BGPSpeaker::HandleConnect, this),
-                MakeCallback(&BGPSpeaker::HandleConnectFailed, this)
-            );
-
-            s->SetRecvCallback(MakeCallback(&BGPSpeaker::HandleRead, this));
-
             PeerStatus *ps = new PeerStatus;
             ps->socket = s;
             ps->asn = peer_asn;
@@ -101,12 +94,19 @@ void BGPSpeaker::StartApplication () {
             ps->status = 0;
             ps->speaker = this;
 
+            s->SetConnectCallback(
+                MakeCallback(&PeerStatus::HandleConnect, ps),
+                MakeCallback(&BGPSpeaker::HandleConnectFailed, this)
+            );
+
+            s->SetRecvCallback(MakeCallback(&BGPSpeaker::HandleRead, this));
+
             s->SetCloseCallbacks(
                 MakeCallback(&PeerStatus::HandleClose, ps),
                 MakeCallback(&PeerStatus::HandleClose, ps)
             );
 
-            m_peer_status.push_back(ps);
+            //m_peer_status.push_back(ps);
         });
     }
 }
@@ -115,9 +115,14 @@ void BGPSpeaker::StopApplication () {
     if (m_sock != 0) {
         std::for_each(m_peer_status.begin(), m_peer_status.end(), [](PeerStatus *ps) {
             ps->socket->Close();
+            ps->socket->SetRecvCallback(MakeNullCallback<void, Ptr<Socket>>());
         });
         m_peer_status.erase(m_peer_status.begin(), m_peer_status.end());
         m_sock->Close();
+        m_sock->SetAcceptCallback(
+            MakeNullCallback<bool, Ptr<Socket>, const Address &> (),
+            MakeNullCallback<void, Ptr<Socket>, const Address &> ()
+        );
         m_sock = 0;
     }
 }
@@ -160,8 +165,9 @@ void BGPSpeaker::DoClose (PeerStatus *ps) {
 
 }
 
-void BGPSpeaker::HandleConnect (Ptr<Socket> socket) {
-    Ipv4Address me = (((GetNode())->GetObject<Ipv4>())->GetAddress(1, 0)).GetLocal(); 
+void BGPSpeaker::DoConnect (PeerStatus *ps) {
+    Ipv4Address me = (((GetNode())->GetObject<Ipv4>())->GetAddress(1, 0)).GetLocal();
+    auto socket = ps->socket;
 
     auto send_msg = new LibBGP::BGPPacket;
     send_msg->type = 1;
@@ -170,6 +176,7 @@ void BGPSpeaker::HandleConnect (Ptr<Socket> socket) {
     uint8_t *buffer = (uint8_t *) malloc(4096);
     int len = send_msg->write(buffer);
     socket->Send(buffer, len, 0);
+    m_peer_status.push_back(ps);
 
     delete buffer;
     delete send_msg;
@@ -311,7 +318,7 @@ bool BGPSpeaker::SpeakerLogic (Ptr<Socket> sock, uint8_t **buffer, Ipv4Address s
         });
 
         if (ps == m_peer_status.end()) { // ???
-            LOG_WARN("got a UPDATE out of nowhere");
+            LOG_WARN("got a UPDATE out of nowhere (" << src_addr <<")");
             delete pkt;
             return true;
         }
@@ -407,7 +414,7 @@ bool BGPSpeaker::SpeakerLogic (Ptr<Socket> sock, uint8_t **buffer, Ipv4Address s
         });
 
         if (ps == m_peer_status.end()) { // wtf?
-            LOG_WARN("got a KEEPALIVE out of nowhere");
+            LOG_WARN("got a KEEPALIVE out of nowhere (" << src_addr << ")");
             delete pkt;
             return true;
         }
@@ -421,6 +428,7 @@ bool BGPSpeaker::SpeakerLogic (Ptr<Socket> sock, uint8_t **buffer, Ipv4Address s
         if ((*ps)->status == 1) { // in OPEN_CONFIRM, go to ESTABLISHED
             (*ps)->status = 2;
             LOG_INFO("session with AS" << (*ps)->asn << " established");
+            KeepaliveSenderStart(sock, Seconds(5.0));
 
             if (m_nlri.size() == 0) return true;
 
@@ -452,8 +460,6 @@ bool BGPSpeaker::SpeakerLogic (Ptr<Socket> sock, uint8_t **buffer, Ipv4Address s
                 delete pkt_send;
                 delete buffer;
             });
-
-            KeepaliveSenderStart(sock, Seconds(5.0));
 
             delete pkt;
             return true;

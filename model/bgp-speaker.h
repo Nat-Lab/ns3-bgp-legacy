@@ -34,6 +34,7 @@ class BGPSpeaker : public Application {
 	void setPeers (std::vector<Ptr<BGPPeer>> peers);
 	void setRoutes (std::vector<Ptr<BGPRoute>> routes);
 	void DoClose (PeerStatus *ps);
+	void DoConnect (PeerStatus *ps);
 
 	protected:
 	virtual void DoDispose (void);
@@ -50,7 +51,6 @@ class BGPSpeaker : public Application {
 	void HandleAccept (Ptr<Socket> socket, const Address &src);
 	bool HandleRequest (Ptr<Socket> socket, const Address &src);
 	void HandleRead (Ptr<Socket> sock);
-	void HandleConnect (Ptr<Socket> sock);
 	void HandleConnectFailed (Ptr<Socket> sock);
 	void KeepaliveSenderStart(Ptr<Socket> socket, Time dt);
 	bool SpeakerLogic (Ptr<Socket> sock, uint8_t **buffer, Ipv4Address src_addr);

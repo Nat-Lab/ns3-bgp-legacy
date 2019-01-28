@@ -8,4 +8,10 @@ void PeerStatus::HandleClose(Ptr<Socket> socket) {
 	speaker->DoClose(this);
 }
 
+void PeerStatus::HandleConnect(Ptr<Socket> socket) {
+	status = 0;
+	this->socket = socket;
+	speaker->DoConnect(this);
+}
+
 }

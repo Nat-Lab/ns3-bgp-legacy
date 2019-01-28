@@ -17,6 +17,7 @@ typedef struct PeerStatus {
 	BGPSpeaker *speaker;
 
 	void HandleClose(Ptr<Socket> socket);
+	void HandleConnect(Ptr<Socket> socket);
 } PeerStatus;
 
 }
