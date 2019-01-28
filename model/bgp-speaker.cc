@@ -68,8 +68,8 @@ void BGPSpeaker::StartApplication () {
         );
 
         std::for_each(m_peers.begin(), m_peers.end(), [this](Ptr<BGPPeer> peer) {
-            auto e_peer = std::find_if(m_peer_status.begin(), m_peer_status.end(), [&peer](PeerStatus ps) {
-                return (peer->getAddress()).IsEqual(ps.addr);
+            auto e_peer = std::find_if(m_peer_status.begin(), m_peer_status.end(), [&peer](PeerStatus *ps) {
+                return (peer->getAddress()).IsEqual(ps->addr);
             });
 
             if (e_peer != m_peer_status.end()) return;
@@ -93,11 +93,17 @@ void BGPSpeaker::StartApplication () {
 
             s->SetRecvCallback(MakeCallback(&BGPSpeaker::HandleRead, this));
 
-            PeerStatus ps;
-            ps.socket = s;
-            ps.asn = peer_asn;
-            ps.addr = peer_addr;
-            ps.status = 0;
+            PeerStatus *ps = new PeerStatus;
+            ps->socket = s;
+            ps->asn = peer_asn;
+            ps->addr = peer_addr;
+            ps->status = 0;
+            ps->speaker = this;
+
+            s->SetCloseCallbacks(
+                MakeCallback(&PeerStatus::HandleClose, ps),
+                MakeCallback(&PeerStatus::HandleClose, ps)
+            );
 
             m_peer_status.push_back(ps);
         });
@@ -105,7 +111,52 @@ void BGPSpeaker::StartApplication () {
 }
 
 void BGPSpeaker::StopApplication () {
-    // TODO
+    if (m_sock != 0) {
+        std::for_each(m_peer_status.begin(), m_peer_status.end(), [](PeerStatus *ps) {
+            ps->socket->Close();
+        });
+        m_peer_status.erase(m_peer_status.begin(), m_peer_status.end());
+        m_sock->Close();
+        m_sock = 0;
+    }
+}
+
+void BGPSpeaker::DoClose (PeerStatus *ps) {
+    NS_LOG_INFO("AS" << m_asn << ": session with AS" << ps->asn << " closed");
+
+    auto lambda_find = [&ps](Ptr<BGPRoute> r) {
+        return r->src_peer == ps->addr;
+    };
+    auto rs = std::find_if(m_nlri.begin(), m_nlri.end(), lambda_find);
+    if (rs != m_nlri.end()) {
+        NS_LOG_INFO("AS" << m_asn << ": NLRI from AS" << ps->asn << " non empty, sending withdraws");
+        auto pkt_send = new LibBGP::BGPPacket;
+        auto update_send = new LibBGP::BGPUpdateMessage;
+        auto w_routes = new std::vector<LibBGP::BGPRoute*>;
+
+        do {
+            w_routes->push_back((*rs)->toLibBGP());
+            NS_LOG_INFO("AS" << m_asn << ": send withdraw " << (*rs)->getPrefix() << "/" << (int) (*rs)->getLength());
+        } while (
+            (rs = std::find_if(std::next(rs), m_nlri.end(), lambda_find)) != m_nlri.end()
+        );
+
+        pkt_send->update = update_send;
+        pkt_send->type = 2;
+        update_send->withdrawn_routes = w_routes;
+
+        uint8_t *buffer = (uint8_t *) malloc(4096);
+        int len = pkt_send->write(buffer);
+
+        std::for_each(m_peer_status.begin(), m_peer_status.end(), [&buffer, &len, &ps](PeerStatus *ep) {
+            // send to every established peer.
+            if (ep->status == 2 && !ep->addr.IsEqual(ps->addr)) ep->socket->Send(buffer, len, 0);
+        });
+
+        delete pkt_send;
+        delete buffer;
+    }
+
 }
 
 void BGPSpeaker::HandleConnect (Ptr<Socket> socket) {
@@ -124,6 +175,7 @@ void BGPSpeaker::HandleConnect (Ptr<Socket> socket) {
 }
 
 void BGPSpeaker::HandleConnectFailed (Ptr<Socket> socket) {
+    NS_LOG_WARN("AS" << m_asn << ": failed to connect ssocket" << socket);
     // TODO
 }
 
@@ -138,8 +190,8 @@ bool BGPSpeaker::HandleRequest (Ptr<Socket> socket, const Address &src) {
     });
     if (peer == m_peers.end()) return false; // reject if not in peer list
 
-    auto e_peer = std::find_if(m_peer_status.begin(), m_peer_status.end(), [&src_addr](PeerStatus peer) {
-        return peer.status == 2 && src_addr.IsEqual(peer.addr);
+    auto e_peer = std::find_if(m_peer_status.begin(), m_peer_status.end(), [&src_addr](PeerStatus *peer) {
+        return peer->status == 2 && src_addr.IsEqual(peer->addr);
     });
     if (e_peer != m_peer_status.end()) return false; // reject if already established.
 
@@ -165,20 +217,26 @@ bool BGPSpeaker::SpeakerLogic (Ptr<Socket> sock, uint8_t **buffer, Ipv4Address s
 
         if (!src_addr.IsEqual((*peer)->getAddress())) {
             NS_LOG_WARN("AS" << m_asn << ": Rejecting invlaid source address from AS" << asn <<
-                        ". Want " << (**peer).getAddress() << ", but saw " << src_addr);
+                        ". Want " << (*peer)->getAddress() << ", but saw " << src_addr);
             return true;
         }
 
-        auto ps = std::find_if(m_peer_status.begin(), m_peer_status.end(), [&src_addr](PeerStatus ps) {
-            return ps.addr.IsEqual(src_addr);
+        auto ps = std::find_if(m_peer_status.begin(), m_peer_status.end(), [&src_addr](PeerStatus *ps) {
+            return ps->addr.IsEqual(src_addr);
         });
 
         if (ps != m_peer_status.end()) {
-            if (ps->status == 0) { // we init the conn, send keepalive, go to OPEN_CONFIRM
-                ps->socket = sock;
-                ps->asn = asn;
-                ps->addr = src_addr;
-                ps->status = 1;
+            if ((*ps)->status == 0) { // we init the conn, send keepalive, go to OPEN_CONFIRM
+                (*ps)->socket = sock;
+                (*ps)->asn = asn;
+                (*ps)->addr = src_addr;
+                (*ps)->status = 1;
+                (*ps)->speaker = this;
+
+                sock->SetCloseCallbacks(
+                    MakeCallback(&PeerStatus::HandleClose, *ps),
+                    MakeCallback(&PeerStatus::HandleClose, *ps)
+                );
 
                 auto reply_msg = new LibBGP::BGPPacket;
                 reply_msg->type = 4;
@@ -196,11 +254,11 @@ bool BGPSpeaker::SpeakerLogic (Ptr<Socket> sock, uint8_t **buffer, Ipv4Address s
                 
             }
 
-            if (ps->status == 1) { // race condition where both peer init conn?
+            if ((*ps)->status == 1) { // race condition where both peer init conn?
                 NS_LOG_WARN("AS" << m_asn << ": session with AS" << asn << " in OPEN_CONFIRM but got another open");
             }
 
-            if (ps->status == 2) { // wtf?
+            if ((*ps)->status == 2) { // wtf?
                 NS_LOG_WARN("AS" << m_asn << ": session with AS" << asn << " already established but got another open");
                 delete pkt;
                 return true;
@@ -217,11 +275,17 @@ bool BGPSpeaker::SpeakerLogic (Ptr<Socket> sock, uint8_t **buffer, Ipv4Address s
             int len = reply_msg->write(buffer);
             sock->Send(buffer, len, 0);
 
-            PeerStatus _ps;
-            _ps.socket = sock;
-            _ps.asn = asn;
-            _ps.addr = src_addr;
-            _ps.status = 1;
+            PeerStatus *_ps = new PeerStatus;
+            _ps->socket = sock;
+            _ps->asn = asn;
+            _ps->addr = src_addr;
+            _ps->status = 1;
+            _ps->speaker = this;
+
+            sock->SetCloseCallbacks(
+                MakeCallback(&PeerStatus::HandleClose, _ps),
+                MakeCallback(&PeerStatus::HandleClose, _ps)
+            );
 
             m_peer_status.push_back(_ps);
 
@@ -241,8 +305,8 @@ bool BGPSpeaker::SpeakerLogic (Ptr<Socket> sock, uint8_t **buffer, Ipv4Address s
         auto routes_add = update->nlri;
         auto next_hop = Ipv4Address(ntohl(update->getNexthop()));
 
-        auto ps = std::find_if(m_peer_status.begin(), m_peer_status.end(), [&src_addr](PeerStatus ps) {
-            return src_addr.IsEqual(ps.addr);
+        auto ps = std::find_if(m_peer_status.begin(), m_peer_status.end(), [&src_addr](PeerStatus *ps) {
+            return src_addr.IsEqual(ps->addr);
         });
 
         if (ps == m_peer_status.end()) { // ???
@@ -251,8 +315,8 @@ bool BGPSpeaker::SpeakerLogic (Ptr<Socket> sock, uint8_t **buffer, Ipv4Address s
             return true;
         }
 
-        if (ps->status == 0 || ps->status == 1) { // ???
-            NS_LOG_WARN("AS" << m_asn << ": got UPDATE from AS" << ps->asn << " but session is not yet established");
+        if ((*ps)->status == 0 || (*ps)->status == 1) { // ???
+            NS_LOG_WARN("AS" << m_asn << ": got UPDATE from AS" << (*ps)->asn << " but session is not yet established");
             delete pkt;
             return true;
         }
@@ -286,20 +350,21 @@ bool BGPSpeaker::SpeakerLogic (Ptr<Socket> sock, uint8_t **buffer, Ipv4Address s
 
             if(to_erase != m_nlri.end()) m_nlri.erase(to_erase);
 
-            NS_LOG_INFO("AS" << m_asn << ": withdraw: " << pfx << "/" << len);
+            NS_LOG_INFO("AS" << m_asn << ": withdraw: " << pfx << "/" << (int) len);
         });
         
-        std::for_each(routes_add->begin(), routes_add->end(), [this, &as_path_str, &next_hop, &as_path](LibBGP::BGPRoute *r) {
+        std::for_each(routes_add->begin(), routes_add->end(), [this, &as_path_str, &next_hop, &as_path, &src_addr](LibBGP::BGPRoute *r) {
             auto route = BGPRoute::fromLibBGP(r);
             auto pfx = route->getPrefix();
             auto len = route->getLength();
             // TODO: route: add to kernel table.
 
-            NS_LOG_INFO("AS" << m_asn << ": add: " << pfx << "/" << (int) len << 
+            NS_LOG_INFO("AS" << m_asn << ": got: " << pfx << "/" << (int) len << 
                         ", path: " << (as_path_str.str()).c_str() << ", nexthop: " << next_hop);
 
             auto br = BGPRoute::fromLibBGP(r);
             br->setAsPath(*as_path);
+            br->src_peer = src_addr;
             m_nlri.push_back(br);
         });
 
@@ -311,7 +376,7 @@ bool BGPSpeaker::SpeakerLogic (Ptr<Socket> sock, uint8_t **buffer, Ipv4Address s
         update_send->setNexthop(htonl(me.Get())); // in real world we don't always nexthop=self, but whatever.
         update_send->withdrawn_routes = update->withdrawn_routes;
         update_send->nlri = update->nlri;
-        update_send->setAsPath(as_path, true);
+        if (as_path) update_send->setAsPath(as_path, true);
         update_send->setOrigin(0);
             
         pkt_send->update = update_send;
@@ -320,9 +385,9 @@ bool BGPSpeaker::SpeakerLogic (Ptr<Socket> sock, uint8_t **buffer, Ipv4Address s
         uint8_t *buffer = (uint8_t *) malloc(4096);
         int len = pkt_send->write(buffer);
         
-        std::for_each(m_peer_status.begin(), m_peer_status.end(), [&buffer, &src_addr, &len](PeerStatus ep) {
+        std::for_each(m_peer_status.begin(), m_peer_status.end(), [&buffer, &src_addr, &len](PeerStatus *ep) {
             // send to every established peer.
-            if (ep.status == 2 && !ep.addr.IsEqual(src_addr)) ep.socket->Send(buffer, len, 0);
+            if (ep->status == 2 && !ep->addr.IsEqual(src_addr)) ep->socket->Send(buffer, len, 0);
         });
 
         delete buffer;
@@ -334,8 +399,8 @@ bool BGPSpeaker::SpeakerLogic (Ptr<Socket> sock, uint8_t **buffer, Ipv4Address s
     }
 
     if (pkt->type == 4) {
-        auto ps = std::find_if(m_peer_status.begin(), m_peer_status.end(), [&src_addr](PeerStatus ps) {
-            return src_addr.IsEqual(ps.addr);
+        auto ps = std::find_if(m_peer_status.begin(), m_peer_status.end(), [&src_addr](PeerStatus *ps) {
+            return src_addr.IsEqual(ps->addr);
         });
 
         if (ps == m_peer_status.end()) { // wtf?
@@ -344,20 +409,19 @@ bool BGPSpeaker::SpeakerLogic (Ptr<Socket> sock, uint8_t **buffer, Ipv4Address s
             return true;
         }
 
-        if (ps->status == 0) { // wtf?
-            NS_LOG_WARN("AS" << m_asn << ": got KEEPALIVE from AS" << ps->asn << " but no OPEN");
+        if ((*ps)->status == 0) { // wtf?
+            NS_LOG_WARN("AS" << m_asn << ": got KEEPALIVE from AS" << (*ps)->asn << " but no OPEN");
             delete pkt;
             return true;
         }
 
-        if (ps->status == 1) { // in OPEN_CONFIRM, go to ESTABLISHED
-            ps->status = 2;
-            NS_LOG_INFO("AS" << m_asn << ": session with AS" << ps->asn << " established");
-            // TODO: schedule regular keepalive
+        if ((*ps)->status == 1) { // in OPEN_CONFIRM, go to ESTABLISHED
+            (*ps)->status = 2;
+            NS_LOG_INFO("AS" << m_asn << ": session with AS" << (*ps)->asn << " established");
 
             if (m_nlri.size() == 0) return true;
 
-            NS_LOG_INFO("AS" << m_asn << ": NLRI non empty, sending update to AS" << ps->asn);
+            NS_LOG_INFO("AS" << m_asn << ": NLRI non empty, sending update to AS" << (*ps)->asn);
 
             auto me = (((GetNode())->GetObject<Ipv4>())->GetAddress(1, 0)).GetLocal();
             std::for_each(m_nlri.begin(), m_nlri.end(), [this, &ps, &me, &sock](Ptr<BGPRoute> route) {
@@ -372,7 +436,7 @@ bool BGPSpeaker::SpeakerLogic (Ptr<Socket> sock, uint8_t **buffer, Ipv4Address s
                 update_send->setNexthop(htonl(me.Get()));
                 update_send->addPrefix(htonl((route->getPrefix().Get())), route->getLength(), false);
 
-                NS_LOG_INFO("AS" << m_asn << ": send " << route->getPrefix() << " to AS" << ps->asn);
+                NS_LOG_INFO("AS" << m_asn << ": send " << route->getPrefix() << " to AS" << (*ps)->asn);
 
                 pkt_send->type = 2;
                 pkt_send->update = update_send;
@@ -392,7 +456,7 @@ bool BGPSpeaker::SpeakerLogic (Ptr<Socket> sock, uint8_t **buffer, Ipv4Address s
             return true;
         }
 
-        if (ps->status == 2) { // in ESTABLISHED
+        if ((*ps)->status == 2) { // in ESTABLISHED
             // TODO: hold timer related stuff.
             return true;
         }

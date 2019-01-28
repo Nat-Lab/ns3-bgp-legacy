@@ -15,6 +15,7 @@ def build(bld):
         'model/libbgp.cc',
         'model/build.cc',
         'model/parse.cc',
+        'model/bgp-peerstatus.cc',
         'helper/bgp-helper.cc',
         ]
 

@@ -33,13 +33,14 @@ class BGPSpeaker : public Application {
 	virtual ~BGPSpeaker();
 	void setPeers (std::vector<Ptr<BGPPeer>> peers);
 	void setRoutes (std::vector<Ptr<BGPRoute>> routes);
+	void DoClose (PeerStatus *ps);
 
 	protected:
 	virtual void DoDispose (void);
 
 	private:
 	std::vector<Ptr<BGPPeer>> m_peers;
-	std::vector<PeerStatus> m_peer_status;
+	std::vector<PeerStatus*> m_peer_status;
 	std::vector<Ptr<BGPRoute>> m_nlri;
 	uint32_t m_asn;
 	Ptr<Socket> m_sock;

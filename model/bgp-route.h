@@ -30,6 +30,9 @@ class BGPRoute : public Object {
 	BGPRoute();
 
 	bool operator== (const BGPRoute& other);
+	bool isSame (const BGPRoute& other);
+
+	Ipv4Address src_peer;
 
 	private:
 	uint8_t m_prefix_len;

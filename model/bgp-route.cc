@@ -44,7 +44,7 @@ void BGPRoute::setLength(uint8_t len) {
 
 LibBGP::BGPRoute* BGPRoute::toLibBGP() {
     auto route = new LibBGP::BGPRoute;
-    route->prefix = m_prefix.Get();
+    route->prefix = htonl(m_prefix.Get());
     route->length = m_prefix_len;
 
     return route; 
@@ -64,6 +64,11 @@ Ptr<BGPRoute> BGPRoute::fromLibBGP(LibBGP::BGPRoute* route) {
 
 bool BGPRoute::operator== (const BGPRoute& other) {
     return m_prefix == other.m_prefix && m_prefix_len == other.m_prefix_len;
+}
+
+bool BGPRoute::isSame (const BGPRoute& other) {
+    return m_prefix == other.m_prefix && m_prefix_len == other.m_prefix_len &&
+           m_as_path == other.m_as_path && src_peer == other.src_peer;
 }
 
 std::vector<uint32_t>* BGPRoute::getAsPath() {
