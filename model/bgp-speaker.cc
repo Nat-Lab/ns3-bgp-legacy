@@ -77,6 +77,8 @@ void BGPSpeaker::StartApplication () {
             if (e_peer != m_peer_status.end()) return;
 
             Ptr<Socket> s = Socket::CreateSocket(GetNode(), TcpSocketFactory::GetTypeId());
+            InetSocketAddress bind_to = InetSocketAddress(Ipv4Address::GetAny(), 179);
+            s->Bind(bind_to);
             auto peer_addr = peer->getAddress();
             auto peer_asn = peer->getAsn();
 
@@ -129,6 +131,8 @@ void BGPSpeaker::StopApplication () {
 }
 
 void BGPSpeaker::DoClose (PeerStatus *ps) {
+    //if (ps->status)
+
     LOG_INFO("session with AS" << ps->asn << " closed");
 
     auto lambda_find = [&ps](Ptr<BGPRoute> r) {
@@ -274,8 +278,10 @@ bool BGPSpeaker::SpeakerLogic (Ptr<Socket> sock, uint8_t **buffer, Ipv4Address s
                 LOG_WARN("session with AS" << asn << " in OPEN_CONFIRM but got another open");
             }
 
-            if ((*ps)->status == 2) { // wtf?
-                LOG_WARN("session with AS" << asn << " already established but got another open");
+            if ((*ps)->status == 2) { // conn-collison resolution?
+                LOG_WARN("session with AS" << asn << " already established but got another open, updaing sock.");
+                (*ps)->socket = sock;
+
                 delete pkt;
                 return true;
             }
@@ -358,15 +364,19 @@ bool BGPSpeaker::SpeakerLogic (Ptr<Socket> sock, uint8_t **buffer, Ipv4Address s
             auto route = BGPRoute::fromLibBGP(r);
             auto pfx = route->getPrefix();
             auto len = route->getLength();
+            LOG_INFO("got withdraw: " << pfx << "/" << (int) len);
             // TODO: route: remove from kernel table
 
             auto to_erase = std::find_if(m_nlri.begin(), m_nlri.end(), [&route](Ptr<BGPRoute> r) {
                 return *route == *r;
             });
 
-            if(to_erase != m_nlri.end()) m_nlri.erase(to_erase);
+            if(to_erase != m_nlri.end()) {
+                LOG_INFO("remove from nlri: " << pfx << "/" << (int) len);
+                m_nlri.erase(to_erase);
+            };
 
-            LOG_INFO("withdraw: " << pfx << "/" << (int) len);
+            
         });
         
         std::for_each(routes_add->begin(), routes_add->end(), [this, &as_path_str, &next_hop, &as_path, &src_addr](LibBGP::BGPRoute *r) {
@@ -416,6 +426,10 @@ bool BGPSpeaker::SpeakerLogic (Ptr<Socket> sock, uint8_t **buffer, Ipv4Address s
         return true;
     }
 
+    if (pkt->type == 3) {
+        // TODO
+    }
+
     if (pkt->type == 4) {
         auto ps = std::find_if(m_peer_status.begin(), m_peer_status.end(), [&src_addr](PeerStatus *ps) {
             return src_addr.IsEqual(ps->addr);
@@ -455,7 +469,7 @@ bool BGPSpeaker::SpeakerLogic (Ptr<Socket> sock, uint8_t **buffer, Ipv4Address s
                 update_send->setNexthop(htonl(me.Get()));
                 update_send->addPrefix(htonl((route->getPrefix().Get())), route->getLength(), false);
 
-                LOG_INFO("send " << route->getPrefix() << " to AS" << (*ps)->asn);
+                LOG_INFO("send " << route->getPrefix() << "/" << (int) route->getLength() << " to AS" << (*ps)->asn);
 
                 pkt_send->type = 2;
                 pkt_send->update = update_send;
