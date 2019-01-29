@@ -12,6 +12,7 @@ def build(bld):
         'model/bgp-speaker.cc',
         'model/bgp-peer.cc',
         'model/bgp-route.cc',
+        'model/bgp-routing.cc',
         'model/libbgp.cc',
         'model/build.cc',
         'model/parse.cc',
@@ -30,6 +31,7 @@ def build(bld):
         'model/bgp-speaker.h',
         'model/bgp-peer.h',
         'model/bgp-route.h',
+        'model/bgp-routing.h',
         'model/bgp-peerstatus.h',
         'helper/bgp-helper.h',
         ]

@@ -53,6 +53,14 @@ void BGPSpeaker::DoDispose() {
 
 void BGPSpeaker::StartApplication () {
     if (m_sock == 0) {
+        auto v4_stack = GetNode()->GetObject<Ipv4>();
+        auto list_rp = CreateObject<Ipv4ListRouting> ();
+        list_rp->AddRoutingProtocol(CreateObject<Ipv4StaticRouting>(), 10);
+        m_routing = CreateObject<BGPRouting>();
+        m_routing->m_asn = m_asn;
+        list_rp->AddRoutingProtocol(m_routing, 5);
+        v4_stack->SetRoutingProtocol(list_rp);
+
         m_sock = Socket::CreateSocket(GetNode(), TcpSocketFactory::GetTypeId());
         InetSocketAddress listen = InetSocketAddress(Ipv4Address::GetAny(), 179);
 
@@ -391,6 +399,7 @@ bool BGPSpeaker::SpeakerLogic (Ptr<Socket> sock, uint8_t **buffer, Ipv4Address s
             auto br = BGPRoute::fromLibBGP(r);
             br->setAsPath(*as_path);
             br->src_peer = src_addr;
+            br->next_hop = next_hop;
             m_nlri.push_back(br);
         });
 

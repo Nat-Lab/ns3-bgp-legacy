@@ -10,6 +10,7 @@
 
 #include "bgp-peer.h"
 #include "bgp-route.h"
+#include "bgp-routing.h"
 #include "bgp-peerstatus.h"
 #include "ns3/application.h"
 #include "ns3/uinteger.h"
@@ -22,6 +23,8 @@
 #include "ns3/ipv4.h"
 #include "ns3/log.h"
 #include "ns3/simulator.h"
+#include "ns3/ipv4-list-routing.h"
+#include "ns3/ipv4-static-routing.h"
 
 namespace ns3 {
 
@@ -45,6 +48,7 @@ class BGPSpeaker : public Application {
 	std::vector<Ptr<BGPRoute>> m_nlri;
 	uint32_t m_asn;
 	Ptr<Socket> m_sock;
+	Ptr<BGPRouting> m_routing;
 
 	virtual void StartApplication(void);
 	virtual void StopApplication(void);
