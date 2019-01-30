@@ -5,6 +5,29 @@
 #define LOG_INFO(x) NS_LOG_INFO("[I " <<  Simulator::Now() << "] AS " << m_asn << ": " << x)
 #define LOG_WARN(x) NS_LOG_WARN("[W " <<  Simulator::Now() << "] AS " << m_asn << ": " << x)
 
+void hexDump (void *addr, int len) {
+    int i;
+    unsigned char buff[17];
+    unsigned char *pc = (unsigned char*)addr;
+    for (i = 0; i < len; i++) {
+        if ((i % 16) == 0) {
+            if (i != 0) printf ("  %s\n", buff);
+            printf ("  %04x ", i);
+        }
+        printf (" %02x", pc[i]);
+        if ((pc[i] < 0x20) || (pc[i] > 0x7e))
+            buff[i % 16] = '.';
+        else
+            buff[i % 16] = pc[i];
+        buff[(i % 16) + 1] = '\0';
+    }
+    while ((i % 16) != 0) {
+        printf ("   ");
+        i++;
+    }
+    printf ("  %s\n", buff);
+}
+
 namespace ns3 {
 
 NS_LOG_COMPONENT_DEFINE("BGPSpeaker");
@@ -32,7 +55,7 @@ TypeId BGPSpeaker::GetTypeId (void) {
 } 
 
 BGPSpeaker::BGPSpeaker() {
-    
+    m_buf_frag_len = 0;
 }
 
 void BGPSpeaker::setPeers (std::vector<Ptr<BGPPeer>> peers) {
@@ -522,12 +545,56 @@ void BGPSpeaker::HandleRead (Ptr<Socket> sock) {
     uint8_t *buffer = (uint8_t *) malloc(65536);
     int sz = sock->RecvFrom(buffer, 65536, 0, from);
     auto src_addr = (InetSocketAddress::ConvertFrom(from)).GetIpv4();
+    auto frag = frags.getFragment(src_addr);
+
+    bool has_valid = true;
+
+    if (frag->size > 0) {
+        if (sz == 19) {
+            // this might not be a frag, but a KEEPALIVE being sent in race-condition.
+            // dirty hack, maybe figure out a better way in the future.
+            LibBGP::BGPPacket p;
+            LibBGP::Parsers::parseHeader(buffer, &p);
+            if (p.type == 4) {
+                SpeakerLogic(sock, &buffer, src_addr);
+                return;
+            }
+        } else {
+            memmove(buffer + frag->size, buffer, sz);
+            memcpy(buffer, frag->buffer, frag->size);
+            sz += frag->size;
+            frag->clear();
+            LOG_INFO("recv(): fragment from last time added to buffer.");
+        }
+    }
+    
     if (sz < 19) return;
 
     uint8_t *buffer_ptr = buffer;
-    bool has_valid = true;
 
     while (buffer_ptr - buffer < sz && has_valid) {
+        auto buffer_left = sz - (buffer_ptr - buffer);
+        if (buffer_left > 0 && buffer_left <= 19) { 
+            if (buffer_left == 19) {
+                LibBGP::BGPPacket p;
+                LibBGP::Parsers::parseHeader(buffer_ptr, &p);
+                if (p.type == 4) {
+                    has_valid = SpeakerLogic(sock, &buffer_ptr, src_addr);
+                    return;
+                }
+            }
+            LOG_INFO("recv(): TCP fragment needs to be deal with (left=" << buffer_left << ")");
+            frag->set(buffer_ptr, buffer_left);
+            return;
+        } else {
+            LibBGP::BGPPacket p;
+            LibBGP::Parsers::parseHeader(buffer_ptr, &p);
+            if (p.length > buffer_left) {
+                LOG_INFO("recv(): TCP fragment needs to be deal with (left=" << buffer_left << ", want=" << p.length << ")");
+                frag->set(buffer_ptr, buffer_left);
+                return;
+            }
+        }
         has_valid = SpeakerLogic(sock, &buffer_ptr, src_addr);
     }
    

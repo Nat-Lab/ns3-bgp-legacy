@@ -12,6 +12,7 @@
 #include "bgp-route.h"
 #include "bgp-routing.h"
 #include "bgp-peerstatus.h"
+#include "bgp-fragment.h"
 #include "ns3/application.h"
 #include "ns3/uinteger.h"
 #include "ns3/object-vector.h"
@@ -50,6 +51,9 @@ class BGPSpeaker : public Application {
 	uint32_t m_asn;
 	Ptr<Socket> m_sock;
 	Ptr<BGPRouting> m_routing;
+
+	BGPFragments frags;
+	int m_buf_frag_len;
 
 	virtual void StartApplication(void);
 	virtual void StopApplication(void);
