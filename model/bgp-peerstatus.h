@@ -15,6 +15,7 @@ typedef struct PeerStatus {
 	Ptr<Socket> socket;
 	Ipv4Address addr;
 	uint32_t asn;
+	uint32_t dev_id;
 	BGPSpeaker *speaker;
 	EventId e_keepalive_sender;
 

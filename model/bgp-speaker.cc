@@ -58,6 +58,7 @@ void BGPSpeaker::StartApplication () {
         list_rp->AddRoutingProtocol(CreateObject<Ipv4StaticRouting>(), 10);
         m_routing = CreateObject<BGPRouting>();
         m_routing->m_asn = m_asn;
+        m_routing->setNlri(&this->m_nlri);
         list_rp->AddRoutingProtocol(m_routing, 5);
         v4_stack->SetRoutingProtocol(list_rp);
 
@@ -103,6 +104,7 @@ void BGPSpeaker::StartApplication () {
             ps->addr = peer_addr;
             ps->status = 0;
             ps->speaker = this;
+            ps->dev_id = peer->m_peer_dev_id;
 
             s->SetConnectCallback(
                 MakeCallback(&PeerStatus::HandleConnect, ps),
@@ -311,6 +313,7 @@ bool BGPSpeaker::SpeakerLogic (Ptr<Socket> sock, uint8_t **buffer, Ipv4Address s
             _ps->addr = src_addr;
             _ps->status = 1;
             _ps->speaker = this;
+            _ps->dev_id = (*peer)->m_peer_dev_id; 
 
             sock->SetCloseCallbacks(
                 MakeCallback(&PeerStatus::HandleClose, _ps),
@@ -368,38 +371,45 @@ bool BGPSpeaker::SpeakerLogic (Ptr<Socket> sock, uint8_t **buffer, Ipv4Address s
 
         if (as_path) as_path->insert(as_path->begin(), m_asn);
 
-        std::for_each(routes_drop->begin(), routes_drop->end(), [this](LibBGP::BGPRoute *r) {
+        if (routes_drop->size() > 0) std::for_each(routes_drop->begin(), routes_drop->end(), [this, &src_addr](LibBGP::BGPRoute *r) {
             auto route = BGPRoute::fromLibBGP(r);
             auto pfx = route->getPrefix();
             auto len = route->getLength();
             LOG_INFO("got withdraw: " << pfx << "/" << (int) len);
-            // TODO: route: remove from kernel table
 
-            auto to_erase = std::find_if(m_nlri.begin(), m_nlri.end(), [&route](Ptr<BGPRoute> r) {
-                return *route == *r;
+            auto to_erase = std::find_if(m_nlri.begin(), m_nlri.end(), [&route, &src_addr](Ptr<BGPRoute> r) {
+                return *route == *r && r->src_peer == src_addr;
             });
 
-            if(to_erase != m_nlri.end()) {
-                LOG_INFO("remove from nlri: " << pfx << "/" << (int) len);
+            if (to_erase != m_nlri.end()) {
+                LOG_INFO("nlri: remove " << pfx << "/" << (int) len);
                 m_nlri.erase(to_erase);
-            };
-
-            
+            } else LOG_INFO("nlri: no match " << pfx << "/" << (int) len);
         });
         
-        std::for_each(routes_add->begin(), routes_add->end(), [this, &as_path_str, &next_hop, &as_path, &src_addr](LibBGP::BGPRoute *r) {
+        if (routes_add->size() > 0) std::for_each(routes_add->begin(), routes_add->end(), [this, &ps, &as_path_str, &next_hop, &as_path, &src_addr, &sock](LibBGP::BGPRoute *r) {
             auto route = BGPRoute::fromLibBGP(r);
             auto pfx = route->getPrefix();
             auto len = route->getLength();
-            // TODO: route: add to kernel table.
 
-            LOG_INFO("got: " << pfx << "/" << (int) len << 
+            LOG_INFO("got update: " << pfx << "/" << (int) len << 
                         ", path: " << (as_path_str.str()).c_str() << ", nexthop: " << next_hop);
+
+            auto to_erase = std::find_if(m_nlri.begin(), m_nlri.end(), [&route, &src_addr](Ptr<BGPRoute> r) {
+                return *route == *r && r->src_peer == src_addr;
+            });
+
+            if (to_erase != m_nlri.end()) {
+                LOG_INFO("nlri: replace " << pfx << "/" << (int) len);
+                m_nlri.erase(to_erase);
+            } else LOG_INFO("nlri add: " << pfx << "/" << (int) len);
 
             auto br = BGPRoute::fromLibBGP(r);
             br->setAsPath(*as_path);
             br->src_peer = src_addr;
             br->next_hop = next_hop;
+            //br->device = sock->GetBoundNetDevice();
+            br->device = GetNode()->GetDevice((*ps)->dev_id); // TODO what if mutiple dev
             m_nlri.push_back(br);
         });
 

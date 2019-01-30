@@ -7,6 +7,7 @@
 #include "ns3/ipv4-address.h"
 #include "ns3/uinteger.h"
 
+
 namespace ns3 {
 
 class BGPPeer : public Object {
@@ -18,9 +19,8 @@ class BGPPeer : public Object {
 	uint32_t getAsn();
 	void setAsn(uint32_t asn);
 	BGPPeer();
-
-	private:
 	uint32_t m_peer_as;
+	uint32_t m_peer_dev_id;
 	Ipv4Address m_peer_addr;
 };
 

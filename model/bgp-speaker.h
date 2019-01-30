@@ -25,6 +25,7 @@
 #include "ns3/simulator.h"
 #include "ns3/ipv4-list-routing.h"
 #include "ns3/ipv4-static-routing.h"
+#include "ns3/net-device.h"
 
 namespace ns3 {
 

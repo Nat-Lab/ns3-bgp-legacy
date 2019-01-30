@@ -15,17 +15,20 @@ void BGPHelper::SetAttribute(std::string name, const AttributeValue &value) {
     m_factory.Set(name, value);
 }
 
-void BGPHelper::AddPeer (Ipv4Address addr, uint32_t asn) {
-    Ptr<BGPPeer> peer = new BGPPeer;
-    peer->setAddress(addr);
-    peer->setAsn(asn);
+void BGPHelper::AddPeer (Ipv4Address addr, uint32_t asn, uint32_t dev) {
+    auto peer = new PeerData;
+    peer->m_peer_as = asn;
+    peer->m_peer_addr = addr;
+    peer->m_peer_dev_id = dev;
     m_peers.push_back(peer);
 }
 
-void BGPHelper::AddRoute (Ipv4Address prefix, uint8_t len) {
-    Ptr<BGPRoute> route = new BGPRoute;
-    route->setLength(len);
-    route->setPrefix(prefix);
+void BGPHelper::AddRoute (Ipv4Address prefix, uint8_t len, Ipv4Address nexthop, uint32_t dev) {
+    auto route = new RouteData;
+    route->m_prefix_len = len;
+    route->m_prefix = prefix;
+    route->m_nexthop = nexthop;
+    route->m_dev_id = dev;
     m_nlri.push_back(route);
 }
 
@@ -47,9 +50,28 @@ ApplicationContainer BGPHelper::Install (NodeContainer nodecont) const {
 }
 
 Ptr<Application> BGPHelper::InstallPriv (Ptr<Node> node) const {
+    std::vector<Ptr<BGPPeer>> peers(m_peers.size());
+    std::transform(m_peers.begin(), m_peers.end(), peers.begin(), [&node](PeerData *p) {
+        Ptr<BGPPeer> peer = new BGPPeer;
+        peer->m_peer_as = p->m_peer_as;
+        peer->m_peer_dev_id = p->m_peer_dev_id;
+        peer->m_peer_addr = p->m_peer_addr;
+        return peer;
+    });
+
+    std::vector<Ptr<BGPRoute>> nlri(m_nlri.size());
+    std::transform(m_nlri.begin(), m_nlri.end(), nlri.begin(), [&node](RouteData *r) {
+        Ptr<BGPRoute> route = new BGPRoute;
+        route->m_prefix = r->m_prefix;
+        route->m_prefix_len = r->m_prefix_len;
+        route->next_hop = r->m_nexthop;
+        route->device = node->GetDevice(r->m_dev_id);
+        return route;
+    });
+
     auto app = m_factory.Create<BGPSpeaker>();
-    app->setPeers(m_peers);
-    app->setRoutes(m_nlri);
+    app->setPeers(peers);
+    app->setRoutes(nlri);
 
     Ptr<Application> app_ = app;
 

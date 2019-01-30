@@ -2,6 +2,7 @@
 
 #include "bgp-route.h"
 #include "libbgp.h"
+#include <stdio.h>
 
 namespace ns3 {
 
@@ -63,7 +64,7 @@ Ptr<BGPRoute> BGPRoute::fromLibBGP(LibBGP::BGPRoute* route) {
 }
 
 bool BGPRoute::operator== (const BGPRoute& other) {
-    return m_prefix == other.m_prefix && m_prefix_len == other.m_prefix_len;
+    return m_prefix == other.m_prefix && m_prefix_len == other.m_prefix_len; // && src_peer == other.src_peer;
 }
 
 bool BGPRoute::isSame (const BGPRoute& other) {

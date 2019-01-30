@@ -22,6 +22,7 @@ using namespace ns3;
 
 int main () {
     LogComponentEnable("BGPSpeaker", LOG_LEVEL_ALL);
+    LogComponentEnable("BGPRouting", LOG_LEVEL_ALL);
 
     GlobalValue::Bind("SimulatorImplementationType", 
         StringValue("ns3::RealtimeSimulatorImpl"));
@@ -51,20 +52,20 @@ int main () {
     BGPHelper bgp3 (65003);
     BGPHelper bgp4 (65004);
 
-    bgp0.AddRoute(Ipv4Address("172.16.0.0"), 24); // r0 route: 172.16.0.0/24
-    bgp4.AddRoute(Ipv4Address("172.20.0.0"), 24); // r5 route: 172.20.0.0/24
+    bgp0.AddRoute(Ipv4Address("172.19.0.0"), 24, Ipv4Address("127.0.0.1"), 0); // r0 route: 172.16.0.0/24 via 127.0.0.1 dev lo
+    bgp4.AddRoute(Ipv4Address("172.20.0.0"), 24, Ipv4Address("127.0.0.1"), 0); // r5 route: 172.20.0.0/24 via 127.0.0.1 dev lo
 
-    bgp0.AddPeer(i.GetAddress(1), 65001);
-    bgp1.AddPeer(i.GetAddress(0), 65000);
+    bgp0.AddPeer(i.GetAddress(1), 65001, 1); // AddPeer(peer_address, peer_asn, interface)
+    bgp1.AddPeer(i.GetAddress(0), 65000, 1);
 
-    bgp1.AddPeer(i.GetAddress(2), 65002);
-    bgp2.AddPeer(i.GetAddress(1), 65001);
+    bgp1.AddPeer(i.GetAddress(2), 65002, 1);
+    bgp2.AddPeer(i.GetAddress(1), 65001, 1);
 
-    bgp1.AddPeer(i.GetAddress(3), 65003);
-    bgp3.AddPeer(i.GetAddress(1), 65001);
+    bgp1.AddPeer(i.GetAddress(3), 65003, 1);
+    bgp3.AddPeer(i.GetAddress(1), 65001, 1);
 
-    bgp3.AddPeer(i.GetAddress(4), 65004);
-    bgp4.AddPeer(i.GetAddress(3), 65003);
+    bgp3.AddPeer(i.GetAddress(4), 65004, 1);
+    bgp4.AddPeer(i.GetAddress(3), 65003, 1);
 
     bgp4.AddPeer(i.GetAddress(5), 65005);
 
@@ -74,14 +75,12 @@ int main () {
     auto a3 = bgp3.Install(n.Get(3));
     auto a4 = bgp4.Install(n.Get(4));
 
-    a0.Start(Seconds(10.0));
+    a0.Start(Seconds(0.0));
     a1.Start(Seconds(0.0));
-    a2.Start(Seconds(5.0));
+    a2.Start(Seconds(0.0));
     a3.Start(Seconds(0.0));
-    a4.Start(Seconds(5.0));
-
-    a0.Start(Seconds(25.0));
-    a0.Stop(Seconds(15.0));
+    a4.Start(Seconds(0.0));
+    a4.Stop(Seconds(5.0));
 
     csma.EnablePcapAll("BGPSpeaker");
 
@@ -89,4 +88,3 @@ int main () {
 
     return 0;
 }
-

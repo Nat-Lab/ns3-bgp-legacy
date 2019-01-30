@@ -44,20 +44,20 @@ int main () {
     BGPHelper bgp3 (65003);
     BGPHelper bgp4 (65004);
 
-    bgp0.AddRoute(Ipv4Address("172.16.0.0"), 24); // r0 route: 172.16.0.0/24
-    bgp4.AddRoute(Ipv4Address("172.20.0.0"), 24); // r5 route: 172.20.0.0/24
+    bgp0.AddRoute(Ipv4Address("172.19.0.0"), 24, Ipv4Address("127.0.0.1"), 0); // r0 route: 172.16.0.0/24 via 127.0.0.1 dev lo
+    bgp4.AddRoute(Ipv4Address("172.20.0.0"), 24, Ipv4Address("127.0.0.1"), 0); // r5 route: 172.20.0.0/24 via 127.0.0.1 dev lo
 
-    bgp0.AddPeer(i.GetAddress(1), 65001);
-    bgp1.AddPeer(i.GetAddress(0), 65000);
+    bgp0.AddPeer(i.GetAddress(1), 65001, 1); // AddPeer(peer_address, peer_asn, interface)
+    bgp1.AddPeer(i.GetAddress(0), 65000, 1);
 
-    bgp1.AddPeer(i.GetAddress(2), 65002);
-    bgp2.AddPeer(i.GetAddress(1), 65001);
+    bgp1.AddPeer(i.GetAddress(2), 65002, 1);
+    bgp2.AddPeer(i.GetAddress(1), 65001, 1);
 
-    bgp1.AddPeer(i.GetAddress(3), 65003);
-    bgp3.AddPeer(i.GetAddress(1), 65001);
+    bgp1.AddPeer(i.GetAddress(3), 65003, 1);
+    bgp3.AddPeer(i.GetAddress(1), 65001, 1);
 
-    bgp3.AddPeer(i.GetAddress(4), 65004);
-    bgp4.AddPeer(i.GetAddress(3), 65003);
+    bgp3.AddPeer(i.GetAddress(4), 65004, 1);
+    bgp4.AddPeer(i.GetAddress(3), 65003, 1);
 
     auto a0 = bgp0.Install(n.Get(0));
     auto a1 = bgp1.Install(n.Get(1));

@@ -11,6 +11,7 @@
 #include "ns3/object-vector.h"
 #include "ns3/ptr.h"
 #include "ns3/object-factory.h"
+#include "ns3/net-device.h"
 
 namespace ns3 {
 
@@ -34,8 +35,7 @@ class BGPRoute : public Object {
 
 	Ipv4Address src_peer;
 	Ipv4Address next_hop;
-
-	private:
+	Ptr<NetDevice> device;
 	uint8_t m_prefix_len;
 	Ipv4Address m_prefix;
 	std::vector<uint32_t> m_as_path; // only keep as_path attrib, make life easier.
