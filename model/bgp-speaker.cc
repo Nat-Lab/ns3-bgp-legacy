@@ -216,7 +216,7 @@ void BGPSpeaker::DoConnect (PeerStatus *ps) {
 
     auto send_msg = new LibBGP::BGPPacket;
     send_msg->type = 1;
-    send_msg->open = new LibBGP::BGPOpenMessage(m_asn, 15, htonl(me.Get()));
+    send_msg->open = new LibBGP::BGPOpenMessage(m_asn, HOLD_TIMER, htonl(me.Get()));
 
     uint8_t *buffer = (uint8_t *) malloc(4096);
     int len = send_msg->write(buffer);
@@ -324,7 +324,7 @@ bool BGPSpeaker::SpeakerLogic (Ptr<Socket> sock, uint8_t **buffer, Ipv4Address s
 
             auto reply_msg = new LibBGP::BGPPacket;
             reply_msg->type = 1;
-            reply_msg->open = new LibBGP::BGPOpenMessage(m_asn, 15, htonl(me.Get()));
+            reply_msg->open = new LibBGP::BGPOpenMessage(m_asn, HOLD_TIMER, htonl(me.Get()));
 
             uint8_t *buffer = (uint8_t *) malloc(4096);
             int len = reply_msg->write(buffer);
@@ -360,6 +360,12 @@ bool BGPSpeaker::SpeakerLogic (Ptr<Socket> sock, uint8_t **buffer, Ipv4Address s
         auto routes_drop = update->withdrawn_routes;
         auto routes_add = update->nlri;
         auto next_hop = Ipv4Address(ntohl(update->getNexthop()));
+
+        if (as_path && as_path->size() > 32) {
+            LOG_WARN("as_path too long (> 32), routes will be discard.");
+            delete pkt;
+            return true;
+        }
 
         auto ps = std::find_if(m_peer_status.begin(), m_peer_status.end(), [&src_addr](PeerStatus *ps) {
             return src_addr.IsEqual(ps->addr);
@@ -492,7 +498,7 @@ bool BGPSpeaker::SpeakerLogic (Ptr<Socket> sock, uint8_t **buffer, Ipv4Address s
         if ((*ps)->status == 1) { // in OPEN_CONFIRM, go to ESTABLISHED
             (*ps)->status = 2;
             LOG_INFO("session with AS" << (*ps)->asn << " established");
-            (*ps)->KeepaliveSenderStart(Seconds(5.0));
+            (*ps)->KeepaliveSenderStart(Seconds(KEEPALIVE_TIMER));
 
             if (m_nlri.size() == 0) return true;
 

@@ -2,6 +2,9 @@
 #ifndef BGP_S_H
 #define BGP_S_H
 
+#define HOLD_TIMER 240
+#define KEEPALIVE_TIMER 80
+
 #include <algorithm>
 #include <vector>
 #include <iterator>
