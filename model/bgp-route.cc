@@ -2,7 +2,6 @@
 
 #include "bgp-route.h"
 #include "libbgp.h"
-#include <stdio.h>
 
 namespace ns3 {
 
@@ -18,7 +17,7 @@ TypeId BGPRoute::GetTypeId (void) {
         .AddAttribute("Length", "Prefix Length",
                       UintegerValue(),
                       MakeUintegerAccessor (&BGPRoute::m_prefix_len),
-                      MakeUintegerChecker<uint8_t> (0, 24));
+                      MakeUintegerChecker<uint8_t> (0, 32));
 
     return tid;
 } 
