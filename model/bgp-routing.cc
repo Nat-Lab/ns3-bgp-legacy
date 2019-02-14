@@ -38,7 +38,7 @@ bool BGPRouting::RouteInput
     Ipv4Address destination = header.GetDestination();
     LOG_INFO("routing: look up route-in for: " << destination);
 
-    int max_cidr = 0;
+    int max_cidr = -1;
     Ptr<BGPRoute> selected_route;
     bool r_selected;
 
