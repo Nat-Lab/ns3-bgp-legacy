@@ -312,7 +312,11 @@ bool BGPSpeaker::SpeakerLogic (Ptr<Socket> sock, uint8_t **buffer, Ipv4Address s
             }
 
             if ((*ps)->status == 2) { // conn-collison resolution?
-                LOG_WARN("session with AS" << asn << " already established but got another open, updaing sock.");
+                LOG_WARN("session with AS" << asn << " already established but got another open, updating session socket.");
+                (*ps)->socket->SetCloseCallbacks(
+                    MakeNullCallback<void, Ptr<Socket>> (),
+                    MakeNullCallback<void, Ptr<Socket>> ()
+                );
                 (*ps)->socket = sock;
 
                 delete pkt;
