@@ -79,17 +79,27 @@ void BGPSpeaker::StartApplication () {
         );
 
         std::for_each(m_peers.begin(), m_peers.end(), [this](Ptr<BGPPeer> peer) {
+            auto peer_addr = peer->getAddress();
+            auto peer_asn = peer->getAsn();
+
+            if (peer->passive) {
+                LOG_INFO("session with " << peer_addr << " (AS" << peer_asn << ")" << " is set to passive, skip Connect().");
+                return;
+            }
+
             auto e_peer = std::find_if(m_peer_status.begin(), m_peer_status.end(), [&peer](PeerStatus *ps) {
                 return (peer->getAddress()).IsEqual(ps->addr);
             });
 
-            if (e_peer != m_peer_status.end()) return;
+            if (e_peer != m_peer_status.end()) {
+                LOG_INFO("session with " << peer_addr << " (AS" << peer_asn << ")" << " already exist, skip Connect().");
+                return;
+            }
 
             Ptr<Socket> s = Socket::CreateSocket(GetNode(), TcpSocketFactory::GetTypeId());
             InetSocketAddress bind_to = InetSocketAddress(Ipv4Address::GetAny(), 179);
             s->Bind(bind_to);
-            auto peer_addr = peer->getAddress();
-            auto peer_asn = peer->getAsn();
+            
 
             if(s->Connect(InetSocketAddress(peer->getAddress(), 179)) == -1) {   
                 LOG_WARN("failed to Connect() to peer " << peer_addr << " (AS" << peer_asn << ")");

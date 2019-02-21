@@ -22,6 +22,8 @@ class BGPPeer : public Object {
 	uint32_t m_peer_as;
 	uint32_t m_peer_dev_id;
 	Ipv4Address m_peer_addr;
+
+	bool passive;
 };
 
 }

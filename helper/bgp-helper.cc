@@ -15,11 +15,12 @@ void BGPHelper::SetAttribute(std::string name, const AttributeValue &value) {
     m_factory.Set(name, value);
 }
 
-void BGPHelper::AddPeer (Ipv4Address addr, uint32_t asn, uint32_t dev) {
+void BGPHelper::AddPeer (Ipv4Address addr, uint32_t asn, uint32_t dev, bool passive) {
     auto peer = new PeerData;
     peer->m_peer_as = asn;
     peer->m_peer_addr = addr;
     peer->m_peer_dev_id = dev;
+    peer->passive = passive;
     m_peers.push_back(peer);
 }
 
@@ -56,6 +57,7 @@ Ptr<Application> BGPHelper::InstallPriv (Ptr<Node> node) const {
         peer->m_peer_as = p->m_peer_as;
         peer->m_peer_dev_id = p->m_peer_dev_id;
         peer->m_peer_addr = p->m_peer_addr;
+        peer->passive = p->passive;
         return peer;
     });
 

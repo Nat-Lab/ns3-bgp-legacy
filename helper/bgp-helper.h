@@ -19,6 +19,7 @@ namespace ns3 {
 typedef struct PeerData {
     uint32_t m_peer_as;
     uint32_t m_peer_dev_id;
+    bool passive;
 	Ipv4Address m_peer_addr;
 } PeerData;
 
@@ -33,7 +34,7 @@ class BGPHelper {
     public:
     BGPHelper (uint32_t myAsn);
     void SetAttribute (std::string name, const AttributeValue &value);
-    void AddPeer (Ipv4Address addr, uint32_t asn, uint32_t dev);
+    void AddPeer (Ipv4Address addr, uint32_t asn, uint32_t dev, bool passive = false);
     void AddRoute (Ipv4Address prefix, uint8_t len, Ipv4Address nexthop, uint32_t dev);
     ApplicationContainer Install (Ptr<Node> nodeptr) const;
     ApplicationContainer Install (std::string nodename) const;
