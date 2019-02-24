@@ -23,7 +23,7 @@ TypeId BGPRoute::GetTypeId (void) {
 } 
 
 BGPRoute::BGPRoute() {
-	
+    local = false;
 }
 
 Ipv4Address BGPRoute::getPrefix() {

@@ -24,12 +24,13 @@ void BGPHelper::AddPeer (Ipv4Address addr, uint32_t asn, uint32_t dev, bool pass
     m_peers.push_back(peer);
 }
 
-void BGPHelper::AddRoute (Ipv4Address prefix, uint8_t len, Ipv4Address nexthop, uint32_t dev) {
+void BGPHelper::AddRoute (Ipv4Address prefix, uint8_t len, Ipv4Address nexthop, uint32_t dev, bool local) {
     auto route = new RouteData;
     route->m_prefix_len = len;
     route->m_prefix = prefix;
     route->m_nexthop = nexthop;
     route->m_dev_id = dev;
+    route->local = local;
     m_nlri.push_back(route);
 }
 
@@ -68,6 +69,7 @@ Ptr<Application> BGPHelper::InstallPriv (Ptr<Node> node) const {
         route->m_prefix_len = r->m_prefix_len;
         route->next_hop = r->m_nexthop;
         route->device = node->GetDevice(r->m_dev_id);
+        route->local = r->local;
         return route;
     });
 

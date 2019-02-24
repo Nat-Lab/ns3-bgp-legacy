@@ -39,6 +39,8 @@ class BGPRoute : public Object {
 	uint8_t m_prefix_len;
 	Ipv4Address m_prefix;
 	std::vector<uint32_t> m_as_path; // only keep as_path attrib, make life easier.
+
+	bool local;
 };
 
 }

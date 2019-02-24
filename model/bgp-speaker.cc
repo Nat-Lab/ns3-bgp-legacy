@@ -495,6 +495,11 @@ bool BGPSpeaker::SpeakerLogic (Ptr<Socket> sock, uint8_t **buffer, Ipv4Address s
 
             auto me = (((GetNode())->GetObject<Ipv4>())->GetAddress(1, 0)).GetLocal();
             std::for_each(m_nlri.begin(), m_nlri.end(), [this, &ps, &me, &sock](Ptr<BGPRoute> route) {
+                if (route->local) {
+                    LOG_INFO("not sending local route: " << route->getPrefix() << "/" << (int) route->getLength());
+                    return;
+                }
+
                 auto pkt_send = new LibBGP::BGPPacket;
                 auto update_send = new LibBGP::BGPUpdateMessage;
 
