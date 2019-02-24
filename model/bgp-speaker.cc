@@ -373,11 +373,11 @@ bool BGPSpeaker::SpeakerLogic (Ptr<Socket> sock, uint8_t **buffer, Ipv4Address s
 
         std::stringstream as_path_str;
         if (as_path) {
-            auto self = std::find_if(as_path->begin(), as_path->end(), [this](uint32_t asn) {
-                return asn == m_asn;
+            auto self = std::find_if(as_path->begin(), as_path->end(), [this, &ps](uint32_t asn) {
+                return asn == m_asn && m_asn != (*ps)->asn;
             });
             if (self != as_path->end()) {
-                // m_asn in as_path, ignore.
+                // m_asn in as_path and not iBGP, ignore.
                 delete pkt;
                 return true;
             }
