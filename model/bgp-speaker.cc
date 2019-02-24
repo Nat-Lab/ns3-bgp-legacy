@@ -384,7 +384,10 @@ bool BGPSpeaker::SpeakerLogic (Ptr<Socket> sock, uint8_t **buffer, Ipv4Address s
             std::copy(as_path->begin(), as_path->end(), std::ostream_iterator<uint32_t>(as_path_str, " "));
         }
 
-        if (as_path) as_path->insert(as_path->begin(), m_asn);
+        if (as_path) {
+            if (m_asn != (*ps)->asn) as_path->insert(as_path->begin(), m_asn);
+            else LOG_INFO("ibgp session, not inserting out AS to path.");
+        }
 
         if (routes_drop->size() > 0) std::for_each(routes_drop->begin(), routes_drop->end(), [this, &src_addr](LibBGP::BGPRoute *r) {
             auto route = BGPRoute::fromLibBGP(r);
