@@ -193,7 +193,7 @@ void BGPSpeaker::DoClose (PeerStatus *ps) {
 }
 
 void BGPSpeaker::DoConnect (PeerStatus *ps) {
-    Ipv4Address me = (((GetNode())->GetObject<Ipv4>())->GetAddress(1, 0)).GetLocal();
+    Ipv4Address me = (((GetNode())->GetObject<Ipv4>())->GetAddress(ps->dev_id, 0)).GetLocal();
     auto socket = ps->socket;
 
     auto send_msg = new LibBGP::BGPPacket;
@@ -306,7 +306,7 @@ bool BGPSpeaker::SpeakerLogic (Ptr<Socket> sock, uint8_t **buffer, Ipv4Address s
             }
 
         } else { // peer init the conn, reply open, go to OPEN_CONFIRM
-            Ipv4Address me = (((GetNode())->GetObject<Ipv4>())->GetAddress(1, 0)).GetLocal(); 
+            Ipv4Address me = (((GetNode())->GetObject<Ipv4>())->GetAddress((*peer)->m_peer_dev_id, 0)).GetLocal(); 
 
             auto reply_msg = new LibBGP::BGPPacket;
             reply_msg->type = 1;
@@ -340,7 +340,6 @@ bool BGPSpeaker::SpeakerLogic (Ptr<Socket> sock, uint8_t **buffer, Ipv4Address s
     }
 
     if (pkt->type == 2 && pkt->update) {
-        auto me = (((GetNode())->GetObject<Ipv4>())->GetAddress(1, 0)).GetLocal(); 
         auto update = pkt->update;
         auto as_path = update->getAsPath();
         auto routes_drop = update->withdrawn_routes;
@@ -368,6 +367,8 @@ bool BGPSpeaker::SpeakerLogic (Ptr<Socket> sock, uint8_t **buffer, Ipv4Address s
             delete pkt;
             return true;
         }
+
+        auto me = (((GetNode())->GetObject<Ipv4>())->GetAddress((*ps)->dev_id, 0)).GetLocal(); 
 
         // Update processing
 
@@ -493,7 +494,7 @@ bool BGPSpeaker::SpeakerLogic (Ptr<Socket> sock, uint8_t **buffer, Ipv4Address s
 
             LOG_INFO("NLRI non empty, sending update to AS" << (*ps)->asn);
 
-            auto me = (((GetNode())->GetObject<Ipv4>())->GetAddress(1, 0)).GetLocal();
+            auto me = (((GetNode())->GetObject<Ipv4>())->GetAddress((*ps)->dev_id, 0)).GetLocal();
             std::for_each(m_nlri.begin(), m_nlri.end(), [this, &ps, &me, &sock](Ptr<BGPRoute> route) {
                 if (route->local) {
                     LOG_INFO("not sending local route: " << route->getPrefix() << "/" << (int) route->getLength());
