@@ -2,6 +2,7 @@
 #ifndef BGP_P_H
 #define BGP_P_H
 
+#include "bgp-filter.h"
 #include "bgp-route.h"
 #include "ns3/object.h"
 #include "ns3/ipv4-address.h"
@@ -22,6 +23,8 @@ class BGPPeer : public Object {
 	uint32_t m_peer_as;
 	uint32_t m_peer_dev_id;
 	Ipv4Address m_peer_addr;
+	BGPFilterRules *out_filter;
+	BGPFilterRules *in_filter;
 
 	bool passive;
 };

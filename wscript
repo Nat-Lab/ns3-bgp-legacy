@@ -14,6 +14,7 @@ def build(bld):
         'model/bgp-route.cc',
         'model/bgp-routing.cc',
         'model/bgp-fragment.cc',
+        'model/bgp-filter.cc',
         'model/libbgp.cc',
         'model/build.cc',
         'model/parse.cc',
@@ -35,6 +36,7 @@ def build(bld):
         'model/bgp-routing.h',
         'model/bgp-peerstatus.h',
         'model/bgp-fragment.h',
+        'model/bgp-filter.h',
         'model/libbgp.h',
         'helper/bgp-helper.h',
         ]

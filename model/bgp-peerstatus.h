@@ -1,6 +1,7 @@
 #ifndef BGP_PS_H
 #define BGP_PS_H
 
+#include "bgp-filter.h"
 #include "ns3/ptr.h"
 #include "ns3/socket.h"
 #include "ns3/inet-socket-address.h"
@@ -17,6 +18,8 @@ typedef struct PeerStatus {
 	uint32_t asn;
 	uint32_t dev_id;
 	BGPSpeaker *speaker;
+	BGPFilterRules *out_filter;
+	BGPFilterRules *in_filter;
 	EventId e_keepalive_sender;
 
 	void HandleClose(Ptr<Socket> socket);

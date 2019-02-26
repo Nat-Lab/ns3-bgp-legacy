@@ -15,13 +15,29 @@ void BGPHelper::SetAttribute(std::string name, const AttributeValue &value) {
     m_factory.Set(name, value);
 }
 
-void BGPHelper::AddPeer (Ipv4Address addr, uint32_t asn, uint32_t dev, bool passive) {
+BGPFilterRulesSet BGPHelper::AddPeer (Ipv4Address addr, uint32_t asn, uint32_t dev, bool passive) {
+    auto in_filter = new BGPFilterRules;
+    auto out_filter = new BGPFilterRules;
+    in_filter->default_op = BGPFilterOP::ACCEPT;
+    out_filter->default_op = BGPFilterOP::ACCEPT;
+    return AddPeer(addr, asn, dev, in_filter, out_filter, passive);
+}
+
+BGPFilterRulesSet BGPHelper::AddPeer (Ipv4Address addr, uint32_t asn, uint32_t dev, BGPFilterRules *in_filter, BGPFilterRules *out_filter, bool passive) {
+    BGPFilterRulesSet set;
+    set.in_filter = in_filter;
+    set.out_filter = out_filter;
+
     auto peer = new PeerData;
     peer->m_peer_as = asn;
     peer->m_peer_addr = addr;
     peer->m_peer_dev_id = dev;
     peer->passive = passive;
+    peer->in_filter = in_filter;
+    peer->out_filter = out_filter;
     m_peers.push_back(peer);
+
+    return set;
 }
 
 void BGPHelper::AddRoute (Ipv4Address prefix, uint8_t len, Ipv4Address nexthop, uint32_t dev, bool local) {
@@ -59,6 +75,8 @@ Ptr<Application> BGPHelper::InstallPriv (Ptr<Node> node) const {
         peer->m_peer_dev_id = p->m_peer_dev_id;
         peer->m_peer_addr = p->m_peer_addr;
         peer->passive = p->passive;
+        peer->in_filter = p->in_filter;
+        peer->out_filter = p->out_filter;
         return peer;
     });
 
