@@ -24,8 +24,19 @@ Ptr<Ipv4Route> BGPRouting::RouteOutput
 
     Ipv4Address destination = header.GetDestination();
 
-    LOG_INFO("routing: route-out requested for: " << destination << ", but out-routing is not implemented.");
-    // TODO
+    LOG_INFO("routing: route-out requested for: " << destination);
+
+    auto selected_route = lookup(destination);
+
+    if (selected_route) {
+        LOG_INFO("routing: nexthop of " << destination << " is at " << selected_route->next_hop);
+        auto reply_rou = Create<Ipv4Route>();
+        reply_rou->SetDestination(destination);
+        reply_rou->SetGateway(selected_route->next_hop);
+        reply_rou->SetOutputDevice(selected_route->device);
+        reply_rou->SetSource(m_ipv4->GetAddress(m_ipv4->GetInterfaceForDevice(selected_route->device), 0).GetLocal());
+        return reply_rou;
+    } else LOG_INFO("routing: route-out: we don't know how to get " << destination);
 
     return 0;
 
@@ -38,30 +49,9 @@ bool BGPRouting::RouteInput
     Ipv4Address destination = header.GetDestination();
     LOG_INFO("routing: look up route-in for: " << destination);
 
-    int max_cidr = -1;
-    Ptr<BGPRoute> selected_route;
-    bool r_selected;
+    auto selected_route = lookup(destination);
 
-    std::for_each(m_nlri->begin(), m_nlri->end(), [this, &destination, &r_selected, &selected_route, &max_cidr](Ptr<BGPRoute> r) {
-        auto cidr_len = r->getLength();
-        auto mask = Ipv4Mask(CIDR_MASK_MAP[cidr_len]);
-        if(destination.CombineMask(mask).IsEqual(r->getPrefix())) {
-            r_selected = true;
-
-            if (max_cidr < cidr_len) { // more specific route found
-                selected_route = r;
-                max_cidr = cidr_len;
-            }
-            
-            if (max_cidr == cidr_len) { // same mask, compare as_path
-                if (r->getAsPath()->size() < selected_route->getAsPath()->size()) {
-                    selected_route = r;
-                }
-            }
-        }
-    });
-
-    if (r_selected) {
+    if (selected_route) {
         LOG_INFO("routing: nexthop of " << destination << " is at " << selected_route->next_hop);
         if (selected_route->next_hop.CombineMask(CIDR_MASK_MAP[8]).IsEqual(Ipv4Address("127.0.0.0"))) {
             // next hop is loopback, treat as local.
@@ -113,6 +103,30 @@ void BGPRouting::setNlri (std::vector<Ptr<BGPRoute>> *m_nlri) {
         LOG_INFO("routing: table enrey: " << r->getPrefix());
     });
     this->m_nlri = m_nlri;
+}
+
+Ptr<BGPRoute> BGPRouting::lookup (const Ipv4Address &dest) const {
+    int max_cidr = -1;
+    Ptr<BGPRoute> selected_route = 0;
+
+    std::for_each(m_nlri->begin(), m_nlri->end(), [this, &dest, &selected_route, &max_cidr](Ptr<BGPRoute> r) {
+        auto cidr_len = r->getLength();
+        auto mask = Ipv4Mask(CIDR_MASK_MAP[cidr_len]);
+        if(dest.CombineMask(mask).IsEqual(r->getPrefix())) {
+            if (max_cidr < cidr_len) { // more specific route found
+                selected_route = r;
+                max_cidr = cidr_len;
+            }
+            
+            if (max_cidr == cidr_len) { // same mask, compare as_path
+                if (r->getAsPath()->size() < selected_route->getAsPath()->size()) {
+                    selected_route = r;
+                }
+            }
+        }
+    });
+
+    return selected_route;
 }
 
 }

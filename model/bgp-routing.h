@@ -44,6 +44,8 @@ class BGPRouting : public Ipv4RoutingProtocol {
 
 	void setNlri(std::vector<Ptr<BGPRoute>> *m_nlri);
 
+	Ptr<BGPRoute> lookup (const Ipv4Address &dest) const;
+
 	uint32_t m_asn;
 
 	private:
