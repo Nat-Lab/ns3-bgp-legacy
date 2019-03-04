@@ -43,6 +43,9 @@ class BGPSpeaker : public Application {
 	void setRoutes (std::vector<Ptr<BGPRoute>> routes);
 	void DoClose (PeerStatus *ps);
 	void DoConnect (PeerStatus *ps);
+	std::vector<PeerStatus*> *getPeers(void);
+	std::vector<Ptr<BGPRoute>> *getRoutes(void);
+	uint32_t getAsn(void);
 
 	protected:
 	virtual void DoDispose (void);

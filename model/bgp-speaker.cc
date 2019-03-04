@@ -51,6 +51,18 @@ void BGPSpeaker::DoDispose() {
     Application::DoDispose();
 }
 
+std::vector<PeerStatus*> *BGPSpeaker::getPeers(void) {
+    return &m_peer_status;
+}
+
+std::vector<Ptr<BGPRoute>> *BGPSpeaker::getRoutes(void) {
+    return &m_nlri;
+}
+
+uint32_t BGPSpeaker::getAsn(void) {
+    return m_asn;
+}
+
 void BGPSpeaker::StartApplication () {
     if (m_sock == 0) {
         auto v4_stack = GetNode()->GetObject<Ipv4>();
