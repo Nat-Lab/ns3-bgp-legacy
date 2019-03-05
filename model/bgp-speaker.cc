@@ -420,11 +420,13 @@ bool BGPSpeaker::SpeakerLogic (Ptr<Socket> sock, uint8_t **buffer, Ipv4Address s
         }
 
         if (as_path) {
-            if (m_asn != (*ps)->asn) as_path->insert(as_path->begin(), m_asn);
-            else LOG_INFO("ibgp session, not inserting out AS to path.");
+            /*if (m_asn != (*ps)->asn)*/ as_path->insert(as_path->begin(), m_asn);
+            //else LOG_INFO("ibgp session, not inserting out AS to path.");
         }
 
-        if (routes_drop->size() > 0) std::for_each(routes_drop->begin(), routes_drop->end(), [this, &src_addr](LibBGP::BGPRoute *r) {
+        bool withdraw_accepted = false;
+
+        if (routes_drop->size() > 0) std::for_each(routes_drop->begin(), routes_drop->end(), [this, &src_addr, &withdraw_accepted](LibBGP::BGPRoute *r) {
             auto route = BGPRoute::fromLibBGP(r);
             auto pfx = route->getPrefix();
             auto len = route->getLength();
@@ -437,6 +439,7 @@ bool BGPSpeaker::SpeakerLogic (Ptr<Socket> sock, uint8_t **buffer, Ipv4Address s
             if (to_erase != m_nlri.end()) {
                 LOG_INFO("nlri: remove " << pfx << "/" << (int) len);
                 m_nlri.erase(to_erase);
+                withdraw_accepted = true;
             } else LOG_INFO("nlri: no match " << pfx << "/" << (int) len);
         });
         
@@ -471,7 +474,8 @@ bool BGPSpeaker::SpeakerLogic (Ptr<Socket> sock, uint8_t **buffer, Ipv4Address s
         auto pkt_send = new LibBGP::BGPPacket;
         auto update_send = new LibBGP::BGPUpdateMessage;
         
-        update_send->withdrawn_routes = update->withdrawn_routes;
+        if (withdraw_accepted)
+            update_send->withdrawn_routes = update->withdrawn_routes; // FIXME
         update_send->nlri = routes_add;
         if (as_path) {
             update_send->setNexthop(htonl(me.Get())); // in real world we don't always nexthop=self, but whatever.
@@ -485,13 +489,13 @@ bool BGPSpeaker::SpeakerLogic (Ptr<Socket> sock, uint8_t **buffer, Ipv4Address s
         uint8_t *buffer = (uint8_t *) malloc(4096);
         int len = pkt_send->write(buffer);
         
-        std::for_each(m_peer_status.begin(), m_peer_status.end(), [&routes_add, &pkt_send, &ps, this, &update, &update_send, &buffer, &src_addr, &len](PeerStatus *ep) {
+        std::for_each(m_peer_status.begin(), m_peer_status.end(), [&](PeerStatus *ep) {
             // skip src peer and non-established
             if (ep->status != 2 || ep->addr.IsEqual(src_addr)) return;
 
             // send to every established peer.
             if (update_send->nlri->size() == 0) {
-                if (update_send->withdrawn_routes->size() > 0) {
+                if (withdraw_accepted && update_send->withdrawn_routes->size() > 0) {
                     ep->socket->Send(buffer, len, 0);
                 }
                 LOG_WARN("This update has no new NLRI, nor withdraw. Ignore.");
@@ -509,7 +513,7 @@ bool BGPSpeaker::SpeakerLogic (Ptr<Socket> sock, uint8_t **buffer, Ipv4Address s
             len = pkt_send->write(buffer);
 
             if (update_send->nlri->size() == 0) {
-                if (update_send->withdrawn_routes->size() > 0) {
+                if (withdraw_accepted && update_send->withdrawn_routes->size() > 0) {
                     ep->socket->Send(buffer, len, 0);
                 }
                 LOG_WARN("Filtered NLRI has no new routes and withdraws. Ignore.");
