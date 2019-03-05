@@ -455,18 +455,30 @@ bool BGPSpeaker::SpeakerLogic (Ptr<Socket> sock, uint8_t **buffer, Ipv4Address s
                 return *route == *r && r->src_peer == src_addr;
             });
 
-            if (to_erase != m_nlri.end()) {
-                LOG_INFO("nlri: replace " << pfx << "/" << (int) len);
-                m_nlri.erase(to_erase);
-            } else LOG_INFO("nlri add: " << pfx << "/" << (int) len);
+            bool do_add = false;
 
-            auto br = BGPRoute::fromLibBGP(r);
-            br->setAsPath(*as_path);
-            br->src_peer = src_addr;
-            br->next_hop = next_hop;
-            //br->device = sock->GetBoundNetDevice();
-            br->device = GetNode()->GetDevice((*ps)->dev_id); // TODO what if mutiple dev
-            m_nlri.push_back(br);
+            if (to_erase != m_nlri.end()) {
+                LOG_INFO("nlri: already exist: " << pfx << "/" << (int) len);
+                auto old_sz = (*to_erase)->getAsPath()->size();
+                auto new_sz = as_path->size();
+                if (old_sz > new_sz) {
+                    do_add = true;
+                    LOG_INFO("nlri: removed old path with as_path len=" <<  old_sz << ": " << pfx << "/" << (int) len << " (new one has len=" << new_sz << ")");
+                    m_nlri.erase(to_erase);
+                } else LOG_INFO("nlri: keeping old path with as_path len=" <<  old_sz << ": " << pfx << "/" << (int) len << " (new one has len=" << new_sz << ")");
+            } else do_add = true;
+
+            
+            if (do_add) {
+                LOG_INFO("nlri: adding: " << pfx << "/" << (int) len);
+                auto br = BGPRoute::fromLibBGP(r);
+                br->setAsPath(*as_path);
+                br->src_peer = src_addr;
+                br->next_hop = next_hop;
+                br->device = GetNode()->GetDevice((*ps)->dev_id);
+                m_nlri.push_back(br);
+            }
+            
         });
 
         // Update forward
