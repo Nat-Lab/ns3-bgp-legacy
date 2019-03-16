@@ -42,17 +42,17 @@ void BGPRoute::setLength(uint8_t len) {
     m_prefix_len = len;
 }
 
-LibBGP::BGPRoute* BGPRoute::toLibBGP() {
-    auto route = new LibBGP::BGPRoute;
+const LibBGP::BGPRoute& BGPRoute::toLibBGP() {
+    LibBGP::BGPRoute *route = new LibBGP::BGPRoute;
     route->prefix = htonl(m_prefix.Get());
     route->length = m_prefix_len;
 
-    return route; 
+    return *route; 
 }
 
-Ptr<BGPRoute> BGPRoute::fromLibBGP(LibBGP::BGPRoute* route) {
-    auto prefix = Ipv4Address(ntohl(route->prefix));
-    uint8_t len = route->length;
+Ptr<BGPRoute> BGPRoute::fromLibBGP(const LibBGP::BGPRoute &route) {
+    auto prefix = Ipv4Address(ntohl(route.prefix));
+    uint8_t len = route.length;
 
     ObjectFactory m_factory;
     m_factory.SetTypeId(BGPRoute::GetTypeId());

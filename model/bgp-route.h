@@ -19,8 +19,8 @@ class BGPRoute : public Object {
 
 	public:
 	static TypeId GetTypeId (void);
-	LibBGP::BGPRoute* toLibBGP();
-	static Ptr<BGPRoute> fromLibBGP(LibBGP::BGPRoute *route);
+	const LibBGP::BGPRoute& toLibBGP();
+	static Ptr<BGPRoute> fromLibBGP(const LibBGP::BGPRoute &route);
 
 	Ipv4Address getPrefix();
 	void setPrefix(Ipv4Address prefix);

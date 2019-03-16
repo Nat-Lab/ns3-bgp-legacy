@@ -67,7 +67,7 @@ class BGPSpeaker : public Application {
 	bool HandleRequest (Ptr<Socket> socket, const Address &src);
 	void HandleRead (Ptr<Socket> sock);
 	void HandleConnectFailed (Ptr<Socket> sock);
-	bool SpeakerLogic (Ptr<Socket> sock, uint8_t **buffer, Ipv4Address src_addr);
+	bool SpeakerLogic (Ptr<Socket> sock, uint8_t** const buffer, Ipv4Address src_addr);
 
 };
 

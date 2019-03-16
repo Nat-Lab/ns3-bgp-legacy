@@ -47,15 +47,17 @@ bool BGPRouting::RouteInput
      UnicastForwardCallback ucb, MulticastForwardCallback mcb, LocalDeliverCallback lcb, ErrorCallback ecb) {
 
     Ipv4Address destination = header.GetDestination();
+    uint32_t iif = m_ipv4->GetInterfaceForDevice (idev); 
     LOG_INFO("routing: look up route-in for: " << destination);
 
     auto selected_route = lookup(destination);
 
     if (selected_route) {
         LOG_INFO("routing: nexthop of " << destination << " is at " << selected_route->next_hop);
-        if (selected_route->next_hop.CombineMask(CIDR_MASK_MAP[8]).IsEqual(Ipv4Address("127.0.0.0"))) {
+        if (m_ipv4->IsDestinationAddress (destination, iif) ||
+            selected_route->next_hop.CombineMask(CIDR_MASK_MAP[8]).IsEqual(Ipv4Address("127.0.0.0"))) {
             // next hop is loopback, treat as local.
-            LOG_INFO("routing: nexthop is on loopback, treat ourself as destination");
+            LOG_INFO("routing: nexthop is us, send to local.");
             lcb(p, header, 0);
             return true;
         }
