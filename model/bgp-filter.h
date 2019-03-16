@@ -16,9 +16,10 @@ typedef struct BGPFilterRule {
     BGPFilterOP op;
     Ipv4Address prefix;
     Ipv4Mask mask;
+    bool exact;
 
     BGPFilterRule();
-    BGPFilterRule(const BGPFilterOP &op, const Ipv4Address &prefix, const Ipv4Mask &mask);
+    BGPFilterRule(const BGPFilterOP &op, const Ipv4Address &prefix, const Ipv4Mask &mask, bool exact = false);
     BGPFilterOP apply(const Ipv4Address &prefix, const Ipv4Mask &mask) const;
 } BGPFilterRule;
 
@@ -28,8 +29,8 @@ typedef struct BGPFilterRules {
 
     void operator= (const std::vector<BGPFilterRule> &rules);
     void set (const std::vector<BGPFilterRule> &rules);
-    void insert (const BGPFilterOP &op, const Ipv4Address &prefix, const Ipv4Mask &mask);
-    void append (const BGPFilterOP &op, const Ipv4Address &prefix, const Ipv4Mask &mask);
+    void insert (const BGPFilterOP &op, const Ipv4Address &prefix, const Ipv4Mask &mask, bool exact = false);
+    void append (const BGPFilterOP &op, const Ipv4Address &prefix, const Ipv4Mask &mask, bool exact = false);
     BGPFilterOP apply (const Ipv4Address &prefix, const Ipv4Mask &mask) const;
 } BGPFilterRules;
 
