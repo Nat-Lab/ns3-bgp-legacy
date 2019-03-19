@@ -373,8 +373,6 @@ bool BGPSpeaker::SpeakerLogic (Ptr<Socket> sock, uint8_t** const buffer, Ipv4Add
             return true;
         }
 
-        auto me = (((GetNode())->GetObject<Ipv4>())->GetAddress((*ps)->dev_id, 0)).GetLocal(); 
-
         if (update.nlri.size() > 0) std::copy_if(update.nlri.begin(), update.nlri.end(), std::back_inserter(routes_add), [&ps](LibBGP::BGPRoute rou) {
             return BGPFilterOP::ACCEPT == (*ps)->in_filter->apply(
                 Ipv4Address(ntohl(rou.prefix)),
@@ -473,7 +471,6 @@ bool BGPSpeaker::SpeakerLogic (Ptr<Socket> sock, uint8_t** const buffer, Ipv4Add
         
         update_send.nlri = routes_add;
         if (as_path) {
-            update_send.setNexthop(htonl(me.Get())); // in real world we don't always nexthop=self, but whatever.
             update_send.setAsPath(*as_path, true);
         };
         update_send.setOrigin(0);
@@ -487,6 +484,15 @@ bool BGPSpeaker::SpeakerLogic (Ptr<Socket> sock, uint8_t** const buffer, Ipv4Add
         std::for_each(m_peer_status.begin(), m_peer_status.end(), [&](PeerStatus *ep) {
             // skip src peer and non-established
             if (ep->status != 2 || ep->addr.IsEqual(src_addr)) return;
+
+            if (update_send.nlri.size() != 0) {
+                auto me = (((GetNode())->GetObject<Ipv4>())->GetAddress(ep->dev_id, 0)).GetLocal(); 
+                LOG_INFO("using " << me << " as nexthop for AS " << ep->asn);
+                update_send.setNexthop(htonl(me.Get()));
+                // in real world we don't always nexthop=self, but whatever.
+
+                len = pkt_send.write(buffer);
+            }
 
             // send to every established peer.
             if (update_send.nlri.size() == 0) {
@@ -576,7 +582,7 @@ bool BGPSpeaker::SpeakerLogic (Ptr<Socket> sock, uint8_t** const buffer, Ipv4Add
                 update_send.setNexthop(htonl(me.Get()));
                 update_send.addPrefix(htonl((route->getPrefix().Get())), route->getLength(), false);
 
-                LOG_INFO("send " << route->getPrefix() << "/" << (int) route->getLength() << " to AS" << (*ps)->asn);
+                LOG_INFO("send " << route->getPrefix() << "/" << (int) route->getLength() << " to AS" << (*ps)->asn << " (nexthop = " << me << ")");
 
                 pkt_send.type = 2;
                 //pkt_send.update = update_send;
