@@ -245,10 +245,7 @@ bool BGPSpeaker::HandleRequest (Ptr<Socket> socket, const Address &src) {
     return true;
 }
 
-bool BGPSpeaker::SpeakerLogic (Ptr<Socket> sock, uint8_t** const buffer, Ipv4Address src_addr) {
-    LibBGP::BGPPacket pkt;
-    *buffer = pkt.read(*buffer);
-
+bool BGPSpeaker::SpeakerLogic (Ptr<Socket> sock, LibBGP::BGPPacket &pkt, Ipv4Address src_addr) {
     if (pkt.type == 1) {
         auto &open_msg = pkt.open;
         auto asn = open_msg.getAsn();
@@ -625,7 +622,7 @@ void BGPSpeaker::HandleRead (Ptr<Socket> sock) {
             LibBGP::BGPPacket p;
             LibBGP::Parsers::parseHeader(buffer, &p);
             if (p.type == 4) {
-                SpeakerLogic(sock, &buffer, src_addr);
+                SpeakerLogic(sock, p, src_addr);
                 goto del_and_ret;
             }
         } else {
@@ -644,9 +641,9 @@ void BGPSpeaker::HandleRead (Ptr<Socket> sock) {
         if (buffer_left > 0 && buffer_left <= 19) { 
             if (buffer_left == 19) {
                 LibBGP::BGPPacket p;
-                LibBGP::Parsers::parseHeader(buffer_ptr, &p);
+                buffer_ptr = LibBGP::Parsers::parseHeader(buffer_ptr, &p);
                 if (p.type == 4) {
-                    has_valid = SpeakerLogic(sock, &buffer_ptr, src_addr);
+                    has_valid = SpeakerLogic(sock, p, src_addr);
                     goto del_and_ret;
                 }
             }
@@ -655,14 +652,14 @@ void BGPSpeaker::HandleRead (Ptr<Socket> sock) {
             goto del_and_ret;
         } else {
             LibBGP::BGPPacket p;
-            LibBGP::Parsers::parseHeader(buffer_ptr, &p);
+            buffer_ptr = LibBGP::Parsers::parseHeader(buffer_ptr, &p);
             if (p.length > buffer_left) {
                 LOG_INFO("recv(): TCP fragment needs to be deal with (left=" << buffer_left << ", want=" << p.length << ")");
                 frag->set(buffer_ptr, buffer_left);
                 goto del_and_ret;
             }
+            has_valid = SpeakerLogic(sock, p, src_addr);
         }
-        has_valid = SpeakerLogic(sock, &buffer_ptr, src_addr);
     }
 
     del_and_ret:
