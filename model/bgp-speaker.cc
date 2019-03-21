@@ -90,13 +90,13 @@ void BGPSpeaker::StartApplication () {
             MakeCallback(&BGPSpeaker::HandleAccept, this)
         );
 
-        std::for_each(m_peers.begin(), m_peers.end(), [this](Ptr<BGPPeer> peer) {
+        for (Ptr<BGPPeer> peer : m_peers) {
             auto peer_addr = peer->getAddress();
             auto peer_asn = peer->getAsn();
 
             if (peer->passive) {
                 LOG_INFO("session with " << peer_addr << " (AS" << peer_asn << ")" << " is set to passive, skip Connect().");
-                return;
+                continue;
             }
 
             auto e_peer = std::find_if(m_peer_status.begin(), m_peer_status.end(), [&peer](PeerStatus *ps) {
@@ -105,7 +105,7 @@ void BGPSpeaker::StartApplication () {
 
             if (e_peer != m_peer_status.end()) {
                 LOG_INFO("session with " << peer_addr << " (AS" << peer_asn << ")" << " already exist, skip Connect().");
-                return;
+                continue;
             }
 
             Ptr<Socket> s = Socket::CreateSocket(GetNode(), TcpSocketFactory::GetTypeId());
@@ -115,7 +115,7 @@ void BGPSpeaker::StartApplication () {
 
             if(s->Connect(InetSocketAddress(peer->getAddress(), 179)) == -1) {   
                 LOG_WARN("failed to Connect() to peer " << peer_addr << " (AS" << peer_asn << ")");
-                return;
+                continue;
             }
 
             LOG_INFO("send OPEN to " << peer_addr << " (AS" << peer_asn << ")");
@@ -138,17 +138,17 @@ void BGPSpeaker::StartApplication () {
             s->SetRecvCallback(MakeCallback(&BGPSpeaker::HandleRead, this));
 
             //m_peer_status.push_back(ps);
-        });
+        }
     }
 }
 
 void BGPSpeaker::StopApplication () {
     if (m_sock != 0) {
-        std::for_each(m_peer_status.begin(), m_peer_status.end(), [](PeerStatus *ps) {
+        for (PeerStatus *ps : m_peer_status) {
             ps->socket->Close();
             ps->socket->SetRecvCallback(MakeNullCallback<void, Ptr<Socket>>());
             ps->KeepaliveSenderStop();
-        });
+        }
         m_peer_status.erase(m_peer_status.begin(), m_peer_status.end());
         m_sock->Close();
         m_sock->SetAcceptCallback(
@@ -188,10 +188,10 @@ void BGPSpeaker::DoClose (PeerStatus *ps) {
         uint8_t *buffer = (uint8_t *) malloc(4096);
         int len = pkt_send.write(buffer);
 
-        std::for_each(m_peer_status.begin(), m_peer_status.end(), [&buffer, &len, &ps](PeerStatus *ep) {
+        for(PeerStatus *ep : m_peer_status) {
             // send to every established peer.
             if (ep->status == 2 && !ep->addr.IsEqual(ps->addr)) ep->socket->Send(buffer, len, 0);
-        });
+        }
 
         delete buffer;
     }
@@ -403,7 +403,7 @@ bool BGPSpeaker::SpeakerLogic (Ptr<Socket> sock, LibBGP::BGPPacket &pkt, Ipv4Add
 
         bool withdraw_accepted = false;
 
-        if (routes_drop.size() > 0) std::for_each(routes_drop.begin(), routes_drop.end(), [this, &src_addr, &withdraw_accepted](LibBGP::BGPRoute r) {
+        for (LibBGP::BGPRoute r : routes_drop) {
             auto route = BGPRoute::fromLibBGP(r);
             auto pfx = route->getPrefix(); // menleak ?
             auto len = route->getLength();
@@ -418,9 +418,9 @@ bool BGPSpeaker::SpeakerLogic (Ptr<Socket> sock, LibBGP::BGPPacket &pkt, Ipv4Add
                 m_nlri.erase(to_erase);
                 withdraw_accepted = true;
             } else LOG_INFO("nlri: no match " << pfx << "/" << (int) len);
-        });
+        }
         
-        if (routes_add.size() > 0) std::for_each(routes_add.begin(), routes_add.end(), [this, &ps, &as_path_str, &next_hop, &as_path, &src_addr, &sock](LibBGP::BGPRoute r) {
+        for (LibBGP::BGPRoute r : routes_add) {
             auto route = BGPRoute::fromLibBGP(r); // memleak?
             auto pfx = route->getPrefix();
             auto len = route->getLength();
@@ -456,7 +456,7 @@ bool BGPSpeaker::SpeakerLogic (Ptr<Socket> sock, LibBGP::BGPPacket &pkt, Ipv4Add
                 m_nlri.push_back(br);
             }
             
-        });
+        }
 
         // Update forward
         
@@ -478,9 +478,9 @@ bool BGPSpeaker::SpeakerLogic (Ptr<Socket> sock, LibBGP::BGPPacket &pkt, Ipv4Add
         uint8_t *buffer = (uint8_t *) malloc(4096);
         int len = pkt_send.write(buffer);
         
-        std::for_each(m_peer_status.begin(), m_peer_status.end(), [&](PeerStatus *ep) {
+        for (PeerStatus *ep : m_peer_status) {
             // skip src peer and non-established
-            if (ep->status != 2 || ep->addr.IsEqual(src_addr)) return;
+            if (ep->status != 2 || ep->addr.IsEqual(src_addr)) continue;
 
             if (update_send.nlri.size() != 0) {
                 auto me = (((GetNode())->GetObject<Ipv4>())->GetAddress(ep->dev_id, 0)).GetLocal(); 
@@ -497,7 +497,7 @@ bool BGPSpeaker::SpeakerLogic (Ptr<Socket> sock, LibBGP::BGPPacket &pkt, Ipv4Add
                     ep->socket->Send(buffer, len, 0);
                 }
                 LOG_WARN("This update has no new NLRI, nor withdraw. Ignore.");
-                return;
+                continue;
             }
             std::vector<LibBGP::BGPRoute> filtered_nlri;
             std::copy_if(routes_add.begin(), routes_add.end(), std::back_inserter(filtered_nlri), [&ep](LibBGP::BGPRoute rou) {
@@ -517,7 +517,7 @@ bool BGPSpeaker::SpeakerLogic (Ptr<Socket> sock, LibBGP::BGPPacket &pkt, Ipv4Add
                 LOG_WARN("Filtered NLRI has no new routes and withdraws. Ignore.");
             } else ep->socket->Send(buffer, len, 0);
 
-        });
+        }
 
         delete buffer;
         return true;
@@ -552,10 +552,10 @@ bool BGPSpeaker::SpeakerLogic (Ptr<Socket> sock, LibBGP::BGPPacket &pkt, Ipv4Add
             LOG_INFO("NLRI non empty, sending update to AS" << (*ps)->asn);
 
             auto me = (((GetNode())->GetObject<Ipv4>())->GetAddress((*ps)->dev_id, 0)).GetLocal();
-            std::for_each(m_nlri.begin(), m_nlri.end(), [this, &ps, &me, &sock](Ptr<BGPRoute> route) {
+            for (Ptr<BGPRoute> route : m_nlri) {
                 if (route->local) {
                     LOG_INFO("not sending local route: " << route->getPrefix() << "/" << (int) route->getLength());
-                    return;
+                    continue;
                 }
 
                 if (
@@ -565,7 +565,7 @@ bool BGPSpeaker::SpeakerLogic (Ptr<Socket> sock, LibBGP::BGPPacket &pkt, Ipv4Add
                     )
                 ) {
                     LOG_INFO(route->getPrefix() << "/" << (int) route->getLength() << " filtered by out_filter. ");
-                    return;
+                    continue;
                 }
 
                 LibBGP::BGPPacket pkt_send;
@@ -589,7 +589,7 @@ bool BGPSpeaker::SpeakerLogic (Ptr<Socket> sock, LibBGP::BGPPacket &pkt, Ipv4Add
                 sock->Send(buffer, len, 0);
 
                 delete buffer;
-            });
+            }
 
             return true;
         }
