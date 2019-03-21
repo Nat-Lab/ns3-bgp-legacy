@@ -24,6 +24,11 @@ Ptr<Ipv4Route> BGPRouting::RouteOutput
 
     Ipv4Address destination = header.GetDestination();
 
+    if (destination.IsMulticast()) {
+        LOG_WARN("routing: multicast not implemted: ignore " << destination);
+        return 0;
+    }
+
     LOG_INFO("routing: route-out requested for: " << destination);
 
     auto selected_route = lookup(destination);
@@ -47,6 +52,12 @@ bool BGPRouting::RouteInput
      UnicastForwardCallback ucb, MulticastForwardCallback mcb, LocalDeliverCallback lcb, ErrorCallback ecb) {
 
     Ipv4Address destination = header.GetDestination();
+
+    if (destination.IsMulticast()) {
+        LOG_WARN("routing: multicast not implemted: ignore " << destination);
+        return false;
+    }
+
     uint32_t iif = m_ipv4->GetInterfaceForDevice (idev); 
     LOG_INFO("routing: look up route-in for: " << destination);
 
