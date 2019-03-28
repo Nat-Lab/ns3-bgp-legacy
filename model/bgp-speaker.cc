@@ -641,9 +641,10 @@ void BGPSpeaker::HandleRead (Ptr<Socket> sock) {
         if (buffer_left > 0 && buffer_left <= 19) { 
             if (buffer_left == 19) {
                 LibBGP::BGPPacket p;
-                buffer_ptr = LibBGP::Parsers::parseHeader(buffer_ptr, &p);
+                auto temp_buffer_ptr = LibBGP::Parsers::parseHeader(buffer_ptr, &p);
                 if (p.type == 4) {
                     has_valid = SpeakerLogic(sock, p, src_addr);
+                    if (has_valid) buffer_ptr = temp_buffer_ptr;
                     goto del_and_ret;
                 }
             }
@@ -652,13 +653,14 @@ void BGPSpeaker::HandleRead (Ptr<Socket> sock) {
             goto del_and_ret;
         } else {
             LibBGP::BGPPacket p;
-            buffer_ptr = LibBGP::Parsers::parseHeader(buffer_ptr, &p);
+            auto temp_buffer_ptr = LibBGP::Parsers::parseHeader(buffer_ptr, &p);
             if (p.length > buffer_left) {
                 LOG_INFO("recv(): TCP fragment needs to be deal with (left=" << buffer_left << ", want=" << p.length << ")");
                 frag->set(buffer_ptr, buffer_left);
                 goto del_and_ret;
             }
             has_valid = SpeakerLogic(sock, p, src_addr);
+            if (has_valid) buffer_ptr = temp_buffer_ptr;
         }
     }
 
